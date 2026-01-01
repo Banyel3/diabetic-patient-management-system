@@ -1,0 +1,63 @@
+<?php
+/**
+ * DiabetaCare - Environment Configuration
+ * 
+ * Loads environment variables from .env file.
+ * In production, set these variables in the server configuration.
+ */
+
+declare(strict_types=1);
+
+$envFile = __DIR__ . '/../.env';
+
+if (file_exists($envFile)) {
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    
+    foreach ($lines as $line) {
+        // Skip comments
+        if (str_starts_with(trim($line), '#')) {
+            continue;
+        }
+        
+        // Parse KEY=VALUE
+        if (str_contains($line, '=')) {
+            [$key, $value] = explode('=', $line, 2);
+            $key = trim($key);
+            $value = trim($value);
+            
+            // Remove quotes if present
+            if (preg_match('/^"(.*)"$/', $value, $matches)) {
+                $value = $matches[1];
+            } elseif (preg_match("/^'(.*)'$/", $value, $matches)) {
+                $value = $matches[1];
+            }
+            
+            // Set environment variable
+            putenv("{$key}={$value}");
+            $_ENV[$key] = $value;
+        }
+    }
+}
+
+// Default values
+$defaults = [
+    'APP_ENV' => 'development',
+    'APP_DEBUG' => 'true',
+    'DB_HOST' => 'localhost',
+    'DB_PORT' => '3306',
+    'DB_NAME' => 'diabetacare',
+    'DB_USER' => 'root',
+    'DB_PASSWORD' => '',
+    'JWT_SECRET' => 'change-this-secret-in-production',
+    'JWT_EXPIRY' => '86400', // 24 hours in seconds
+    'FRONTEND_URL' => 'http://localhost:3000',
+    'PAGINATION_DEFAULT_SIZE' => '10',
+    'PAGINATION_MAX_SIZE' => '100',
+];
+
+foreach ($defaults as $key => $value) {
+    if (!getenv($key)) {
+        putenv("{$key}={$value}");
+        $_ENV[$key] = $value;
+    }
+}
