@@ -106,7 +106,7 @@ class LabResultsController
 
         // Get paginated results with patient info
         $labResults = Database::query(
-            "SELECT l.id, l.patient_id, l.test_name, l.test_date, l.result_value,
+            "SELECT l.id, l.patient_id, l.test_type, l.test_date, l.test_value,
                     l.unit, l.reference_range, l.status, l.notes, l.created_at,
                     p.patient_code, p.first_name as patient_first_name, 
                     p.last_name as patient_last_name
@@ -457,11 +457,11 @@ class LabResultsController
         return [
             'id' => (int) $lab['id'],
             'patient_id' => (int) $lab['patient_id'],
-            'patient_code' => $lab['patient_code'],
-            'patient_name' => $lab['patient_first_name'] . ' ' . $lab['patient_last_name'],
-            'test_name' => $lab['test_name'],
+            'patient_code' => $lab['patient_code'] ?? null,
+            'patient_name' => ($lab['patient_first_name'] ?? '') . ' ' . ($lab['patient_last_name'] ?? ''),
+            'test_type' => $lab['test_type'],
             'test_date' => $lab['test_date'],
-            'result_value' => $lab['result_value'],
+            'test_value' => $lab['test_value'],
             'unit' => $lab['unit'],
             'reference_range' => $lab['reference_range'],
             'status' => $lab['status'],

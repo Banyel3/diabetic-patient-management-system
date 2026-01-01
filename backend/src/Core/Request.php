@@ -41,9 +41,19 @@ class Request
         $parsed = parse_url($uri);
         $this->path = $parsed['path'] ?? '/';
         
-        // Remove /api prefix for routing
-        if (str_starts_with($this->path, '/api')) {
-            $this->path = substr($this->path, 4) ?: '/';
+        // Remove base directory path (for XAMPP subdirectory installations)
+        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+        $basePath = dirname(dirname($scriptName)); // Remove /public/index.php
+        if ($basePath !== '/' && $basePath !== '\\' && str_starts_with($this->path, $basePath)) {
+            $this->path = substr($this->path, strlen($basePath));
+        }
+        
+        // Remove /public/index.php if present in path
+        $this->path = preg_replace('#^/public/index\.php#', '', $this->path);
+        
+        // Ensure path starts with /
+        if (!str_starts_with($this->path, '/')) {
+            $this->path = '/' . $this->path;
         }
     }
 

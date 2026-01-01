@@ -22,7 +22,7 @@ use DiabetaCare\Controllers\UsersController;
 // =============================================================================
 
 // Health check endpoint
-Router::get('/api/health', function() {
+$router->get('/api/health', function() {
     return \DiabetaCare\Core\Response::json([
         'status' => 'healthy',
         'version' => '2.0.0',
@@ -31,73 +31,73 @@ Router::get('/api/health', function() {
 });
 
 // Authentication routes
-Router::post('/api/auth/register', [AuthController::class, 'register']);
-Router::post('/api/auth/login', [AuthController::class, 'login']);
-Router::post('/api/auth/forgot-password', [AuthController::class, 'forgotPassword']);
-Router::post('/api/auth/reset-password', [AuthController::class, 'resetPassword']);
+$router->post('/api/auth/register', [AuthController::class, 'register']);
+$router->post('/api/auth/login', [AuthController::class, 'login']);
+$router->post('/api/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+$router->post('/api/auth/reset-password', [AuthController::class, 'resetPassword']);
 
 // =============================================================================
 // PROTECTED ROUTES (Authentication Required)
 // =============================================================================
 
-Router::group(['middleware' => [AuthMiddleware::class]], function() {
+$router->group('', [AuthMiddleware::class], function($router) {
     
     // ---------------------------------------------------------------------------
     // Authentication
     // ---------------------------------------------------------------------------
-    Router::post('/api/auth/logout', [AuthController::class, 'logout']);
-    Router::get('/api/auth/me', [AuthController::class, 'me']);
+    $router->post('/api/auth/logout', [AuthController::class, 'logout']);
+    $router->get('/api/auth/me', [AuthController::class, 'me']);
     
     // ---------------------------------------------------------------------------
     // User Profile
     // ---------------------------------------------------------------------------
-    Router::put('/api/users/me', [UsersController::class, 'updateProfile']);
-    Router::put('/api/users/me/password', [UsersController::class, 'updatePassword']);
+    $router->put('/api/users/me', [UsersController::class, 'updateProfile']);
+    $router->put('/api/users/me/password', [UsersController::class, 'updatePassword']);
     
     // ---------------------------------------------------------------------------
     // Dashboard
     // ---------------------------------------------------------------------------
-    Router::get('/api/dashboard/summary', [DashboardController::class, 'summary']);
-    Router::get('/api/dashboard/upcoming-appointments', [DashboardController::class, 'upcomingAppointments']);
-    Router::get('/api/dashboard/recent-patients', [DashboardController::class, 'recentPatients']);
-    Router::get('/api/dashboard/critical-alerts', [DashboardController::class, 'criticalAlerts']);
-    Router::get('/api/dashboard/hba1c-trends', [DashboardController::class, 'hba1cTrends']);
+    $router->get('/api/dashboard/summary', [DashboardController::class, 'summary']);
+    $router->get('/api/dashboard/upcoming-appointments', [DashboardController::class, 'upcomingAppointments']);
+    $router->get('/api/dashboard/recent-patients', [DashboardController::class, 'recentPatients']);
+    $router->get('/api/dashboard/critical-alerts', [DashboardController::class, 'criticalAlerts']);
+    $router->get('/api/dashboard/hba1c-trends', [DashboardController::class, 'hba1cTrends']);
     
     // ---------------------------------------------------------------------------
     // Patients CRUD
     // ---------------------------------------------------------------------------
-    Router::get('/api/patients', [PatientsController::class, 'index']);
-    Router::get('/api/patients/{id}/summary', [PatientsController::class, 'summary']);
-    Router::get('/api/patients/{id}', [PatientsController::class, 'show']);
-    Router::post('/api/patients', [PatientsController::class, 'store']);
-    Router::put('/api/patients/{id}', [PatientsController::class, 'update']);
-    Router::delete('/api/patients/{id}', [PatientsController::class, 'destroy']);
+    $router->get('/api/patients', [PatientsController::class, 'index']);
+    $router->get('/api/patients/{id}/summary', [PatientsController::class, 'summary']);
+    $router->get('/api/patients/{id}', [PatientsController::class, 'show']);
+    $router->post('/api/patients', [PatientsController::class, 'store']);
+    $router->put('/api/patients/{id}', [PatientsController::class, 'update']);
+    $router->delete('/api/patients/{id}', [PatientsController::class, 'destroy']);
     
     // ---------------------------------------------------------------------------
     // Appointments CRUD
     // ---------------------------------------------------------------------------
-    Router::get('/api/appointments', [AppointmentsController::class, 'index']);
-    Router::get('/api/appointments/{id}', [AppointmentsController::class, 'show']);
-    Router::post('/api/appointments', [AppointmentsController::class, 'store']);
-    Router::put('/api/appointments/{id}', [AppointmentsController::class, 'update']);
-    Router::delete('/api/appointments/{id}', [AppointmentsController::class, 'destroy']);
+    $router->get('/api/appointments', [AppointmentsController::class, 'index']);
+    $router->get('/api/appointments/{id}', [AppointmentsController::class, 'show']);
+    $router->post('/api/appointments', [AppointmentsController::class, 'store']);
+    $router->put('/api/appointments/{id}', [AppointmentsController::class, 'update']);
+    $router->delete('/api/appointments/{id}', [AppointmentsController::class, 'destroy']);
     
     // ---------------------------------------------------------------------------
     // Medications CRUD
     // ---------------------------------------------------------------------------
-    Router::get('/api/medications', [MedicationsController::class, 'index']);
-    Router::get('/api/medications/{id}', [MedicationsController::class, 'show']);
-    Router::post('/api/medications', [MedicationsController::class, 'store']);
-    Router::put('/api/medications/{id}', [MedicationsController::class, 'update']);
-    Router::delete('/api/medications/{id}', [MedicationsController::class, 'destroy']);
+    $router->get('/api/medications', [MedicationsController::class, 'index']);
+    $router->get('/api/medications/{id}', [MedicationsController::class, 'show']);
+    $router->post('/api/medications', [MedicationsController::class, 'store']);
+    $router->put('/api/medications/{id}', [MedicationsController::class, 'update']);
+    $router->delete('/api/medications/{id}', [MedicationsController::class, 'destroy']);
     
     // ---------------------------------------------------------------------------
     // Lab Results CRUD
     // ---------------------------------------------------------------------------
-    Router::get('/api/lab-results', [LabResultsController::class, 'index']);
-    Router::get('/api/lab-results/test-types', [LabResultsController::class, 'testTypes']);
-    Router::get('/api/lab-results/{id}', [LabResultsController::class, 'show']);
-    Router::post('/api/lab-results', [LabResultsController::class, 'store']);
-    Router::put('/api/lab-results/{id}', [LabResultsController::class, 'update']);
-    Router::delete('/api/lab-results/{id}', [LabResultsController::class, 'destroy']);
+    $router->get('/api/lab-results', [LabResultsController::class, 'index']);
+    $router->get('/api/lab-results/test-types', [LabResultsController::class, 'testTypes']);
+    $router->get('/api/lab-results/{id}', [LabResultsController::class, 'show']);
+    $router->post('/api/lab-results', [LabResultsController::class, 'store']);
+    $router->put('/api/lab-results/{id}', [LabResultsController::class, 'update']);
+    $router->delete('/api/lab-results/{id}', [LabResultsController::class, 'destroy']);
 });

@@ -77,9 +77,9 @@ class MedicationsController
 
         // Get paginated results with patient info
         $medications = Database::query(
-            "SELECT m.id, m.patient_id, m.name, m.generic_name, m.dosage, 
-                    m.frequency, m.route, m.start_date, m.end_date,
-                    m.prescribing_doctor, m.status, m.notes, m.created_at,
+            "SELECT m.id, m.patient_id, m.name, m.dosage, 
+                    m.frequency, m.start_date, m.end_date,
+                    m.status, m.notes, m.created_at,
                     p.patient_code, p.first_name as patient_first_name, 
                     p.last_name as patient_last_name
              FROM medications m
@@ -320,16 +320,13 @@ class MedicationsController
         return [
             'id' => (int) $med['id'],
             'patient_id' => (int) $med['patient_id'],
-            'patient_code' => $med['patient_code'],
-            'patient_name' => $med['patient_first_name'] . ' ' . $med['patient_last_name'],
+            'patient_code' => $med['patient_code'] ?? null,
+            'patient_name' => ($med['patient_first_name'] ?? '') . ' ' . ($med['patient_last_name'] ?? ''),
             'name' => $med['name'],
-            'generic_name' => $med['generic_name'],
             'dosage' => $med['dosage'],
             'frequency' => $med['frequency'],
-            'route' => $med['route'] ?? 'Oral',
             'start_date' => $med['start_date'],
             'end_date' => $med['end_date'],
-            'prescribing_doctor' => $med['prescribing_doctor'],
             'status' => $med['status'],
             'notes' => $med['notes'],
             'created_at' => $med['created_at'],
