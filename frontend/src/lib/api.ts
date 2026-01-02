@@ -5,6 +5,9 @@
  * Handles authentication, error handling, and response parsing.
  */
 
+import { getToken, setToken, removeToken, setUser, clearAuth } from "./auth";
+import type { User } from "./auth";
+
 // =============================================================================
 // CONFIGURATION
 // =============================================================================
@@ -34,22 +37,18 @@ export interface PaginatedResponse<T> {
 }
 
 export interface AuthResponse {
+  message?: string;
   user: User;
-  token: string;
-  expires_at: string;
-}
-
-export interface User {
-  id: number;
-  email: string;
-  first_name: string;
-  last_name: string;
-  role: "admin" | "doctor" | "nurse" | "receptionist";
-  clinic: {
+  clinic?: {
     id: number;
     name: string;
   };
+  token: string;
+  expires_at: number | string;
 }
+
+// Re-export User from auth utilities
+export type { User } from "./auth";
 
 export interface Patient {
   id: number;
@@ -240,31 +239,6 @@ export interface DashboardSummary {
 }
 
 // =============================================================================
-// TOKEN MANAGEMENT
-// =============================================================================
-
-const TOKEN_KEY = "diabetacare_token";
-
-export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-export function setToken(token: string): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(TOKEN_KEY, token);
-}
-
-export function removeToken(): void {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(TOKEN_KEY);
-}
-
-export function isAuthenticated(): boolean {
-  return !!getToken();
-}
-
-// =============================================================================
 // API CLIENT
 // =============================================================================
 
@@ -338,18 +312,19 @@ class ApiClient {
         code: "NETWORK_ERROR",
         message:
           "Unable to connect to the server. Please check your connection.",
-      } as ApiError;
-    }
-  }
+      } as ApiErroauthentication errors
+        if (response.status === 401) {
+          clearAuth();
+          if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+            window.location.href = "/login";
+          }
+        }
 
-  async get<T>(
-    endpoint: string,
-    params?: Record<string, string | number | boolean | undefined>
-  ): Promise<T> {
-    let url = endpoint;
-    if (params) {
-      const searchParams = new URLSearchParams();
-      Object.entries(params).forEach(([key, value]) => {
+        // Parse error from backend
+        const error: ApiError = {
+          code: json.error?.code || json.code || "ERROR",
+          message: json.error?.message || json.message || "An error occurred",
+          errors: json.error?.details ||ies(params).forEach(([key, value]) => {
         if (value !== undefined && value !== "") {
           searchParams.append(key, String(value));
         }
@@ -404,6 +379,7 @@ export const authApi = {
   async register(data: RegisterInput): Promise<AuthResponse> {
     const response = await api.post<AuthResponse>("/auth/register", data);
     setToken(response.token);
+    setUser(response.user);
     return response;
   },
 
@@ -413,6 +389,7 @@ export const authApi = {
       password,
     });
     setToken(response.token);
+    setUser(response.user);
     return response;
   },
 
@@ -420,7 +397,7 @@ export const authApi = {
     try {
       await api.post("/auth/logout");
     } finally {
-      removeToken();
+      clearAuth();
     }
   },
 

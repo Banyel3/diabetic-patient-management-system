@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Users,
   Pill,
@@ -11,6 +11,7 @@ import {
   Settings,
   LogOut,
 } from "lucide-react";
+import { authApi } from "@/lib/api";
 
 const navItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -22,11 +23,21 @@ const navItems = [
 
 const bottomNavItems = [
   { name: "Settings", href: "/settings", icon: Settings },
-  { name: "Log out", href: "/login", icon: LogOut },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      // Ignore errors
+    } finally {
+      router.push("/login");
+    }
+  };
 
   return (
     <div className="w-16 bg-transparent flex flex-col items-center py-6 h-screen">
@@ -117,6 +128,21 @@ export default function Sidebar() {
             </Link>
           );
         })}
+
+        {/* Logout Button */}
+        <button
+          onClick={handleLogout}
+          title="Log out"
+          className="relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200 group text-text-muted hover:bg-white hover:text-danger hover:shadow-card"
+        >
+          <LogOut className="w-5 h-5" />
+
+          {/* Tooltip */}
+          <div className="absolute left-full ml-3 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 shadow-lg">
+            Log out
+            <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-primary rotate-45" />
+          </div>
+        </button>
       </div>
     </div>
   );

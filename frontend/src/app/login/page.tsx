@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Mail, Lock, Activity, Loader2 } from "lucide-react";
 import { authApi, type ApiError } from "@/lib/api";
+import { isAuthenticated, getRedirectPath } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,6 +18,13 @@ export default function LoginPage() {
     rememberMe: false,
   });
 
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated()) {
+      router.push("/");
+    }
+  }, [router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -24,7 +32,8 @@ export default function LoginPage() {
 
     try {
       await authApi.login(formData.email, formData.password);
-      router.push("/dashboard");
+      const redirectPath = getRedirectPath();
+      router.push(redirectPath);
     } catch (err) {
       const apiError = err as ApiError;
       setError(

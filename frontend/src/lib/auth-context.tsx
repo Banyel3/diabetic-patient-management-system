@@ -15,13 +15,14 @@ import {
   ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
+import { authApi, type ApiError } from "./api";
 import {
-  authApi,
-  type User,
-  type ApiError,
   isAuthenticated as checkToken,
-  removeToken,
-} from "./api";
+  clearAuth,
+  getUser,
+  getRedirectPath,
+  type User,
+} from "./auth";
 
 interface AuthContextType {
   user: User | null;
@@ -49,11 +50,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Try to get user from localStorage first
+      const cachedUser = getUser();
+      if (cachedUser) {
+        setUser(cachedUser);
+        setLoading(false);
+        return;
+      }
+
+      // Validate token with backend
       try {
         const userData = await authApi.me();
         setUser(userData);
       } catch {
-        removeToken();
+        clearAuth();
       } finally {
         setLoading(false);
       }
@@ -68,7 +78,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const response = await authApi.login(email, password);
         setUser(response.user);
-        router.push("/dashboard");
+
+        // Redirect to stored path or dashboard
+        const redirectPath = getRedirectPath();
+        router.push(redirectPath);
       } catch (err) {
         setError(err as ApiError);
         throw err;
