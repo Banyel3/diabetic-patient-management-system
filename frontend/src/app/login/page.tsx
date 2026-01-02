@@ -4,11 +4,12 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Mail, Lock, Activity, Loader2 } from "lucide-react";
-import { authApi, type ApiError } from "@/lib/api";
-import { isAuthenticated, getRedirectPath } from "@/lib/auth";
+import { type ApiError } from "@/lib/api";
+import { useAuthContext } from "@/lib/auth-context";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login, authenticated, loading: authLoading } = useAuthContext();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,10 +21,10 @@ export default function LoginPage() {
 
   // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated()) {
+    if (!authLoading && authenticated) {
       router.push("/");
     }
-  }, [router]);
+  }, [authenticated, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,9 +32,9 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await authApi.login(formData.email, formData.password);
-      const redirectPath = getRedirectPath();
-      router.push(redirectPath);
+      // Use AuthContext login which updates state and handles redirect
+      await login(formData.email, formData.password);
+      // AuthContext login handles the redirect, no need to call router.push
     } catch (err) {
       const apiError = err as ApiError;
       setError(
@@ -43,6 +44,15 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  // Show loading while auth context is checking
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex">

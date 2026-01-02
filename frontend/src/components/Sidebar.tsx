@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   Users,
   Pill,
@@ -10,8 +10,9 @@ import {
   Beaker,
   Settings,
   LogOut,
+  Sparkles,
 } from "lucide-react";
-import { authApi } from "@/lib/api";
+import { useAuthContext } from "@/lib/auth-context";
 
 const navItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -22,21 +23,16 @@ const navItems = [
 ];
 
 const bottomNavItems = [
+  { name: "Quick Start", href: "/quick-start", icon: Sparkles },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const router = useRouter();
+  const { logout } = useAuthContext();
 
   const handleLogout = async () => {
-    try {
-      await authApi.logout();
-    } catch {
-      // Ignore errors
-    } finally {
-      router.push("/login");
-    }
+    await logout();
   };
 
   return (

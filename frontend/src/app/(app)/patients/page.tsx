@@ -327,7 +327,7 @@ export default function PatientsPage() {
                     <td className="px-6 py-4">
                       <span
                         className={`px-2.5 py-1 rounded-lg text-xs font-medium ${
-                          patient.diabetesType === "Type 1"
+                          patient.diabetes_type === "Type 1"
                             ? "bg-blue-50 text-blue-600"
                             : patient.diabetes_type === "Type 2"
                             ? "bg-purple-50 text-purple-600"
@@ -622,7 +622,7 @@ export default function PatientsPage() {
                     <input
                       type="text"
                       required
-                      value={formData.lastName}
+                      value={formData.last_name}
                       onChange={(e) =>
                         setFormData({ ...formData, last_name: e.target.value })
                       }

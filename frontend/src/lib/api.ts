@@ -5,8 +5,28 @@
  * Handles authentication, error handling, and response parsing.
  */
 
-import { getToken, setToken, removeToken, setUser, clearAuth } from "./auth";
+import {
+  getToken,
+  setToken as setAuthToken,
+  removeToken,
+  setUser,
+  clearAuth,
+  isAuthenticated,
+  getUser,
+  getRedirectPath,
+} from "./auth";
 import type { User } from "./auth";
+
+// Re-export auth utilities for convenience
+export {
+  setAuthToken as setToken,
+  getToken,
+  removeToken,
+  clearAuth,
+  isAuthenticated,
+  getUser,
+  getRedirectPath,
+};
 
 // =============================================================================
 // CONFIGURATION
@@ -244,6 +264,8 @@ export interface DashboardSummary {
 
 class ApiClient {
   private baseUrl: string;
+  private maxRetries: number = 2;
+  private retryDelay: number = 100;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
@@ -253,7 +275,8 @@ class ApiClient {
     method: string,
     endpoint: string,
     data?: unknown,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    retryCount: number = 0
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     const headers: Record<string, string> = {
@@ -287,12 +310,20 @@ class ApiClient {
       const json = await response.json();
 
       if (!response.ok) {
-        // Handle 401 Unauthorized
-        if (response.status === 401) {
-          removeToken();
-          if (typeof window !== "undefined") {
-            window.location.href = "/login";
-          }
+        // Retry on 401 for GET requests (may be a race condition)
+        if (
+          response.status === 401 &&
+          method === "GET" &&
+          retryCount < this.maxRetries
+        ) {
+          await new Promise((resolve) => setTimeout(resolve, this.retryDelay));
+          return this.request<T>(
+            method,
+            endpoint,
+            data,
+            options,
+            retryCount + 1
+          );
         }
 
         const error: ApiError = {
@@ -312,19 +343,18 @@ class ApiClient {
         code: "NETWORK_ERROR",
         message:
           "Unable to connect to the server. Please check your connection.",
-      } as ApiErroauthentication errors
-        if (response.status === 401) {
-          clearAuth();
-          if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-            window.location.href = "/login";
-          }
-        }
+      } as ApiError;
+    }
+  }
 
-        // Parse error from backend
-        const error: ApiError = {
-          code: json.error?.code || json.code || "ERROR",
-          message: json.error?.message || json.message || "An error occurred",
-          errors: json.error?.details ||ies(params).forEach(([key, value]) => {
+  async get<T>(
+    endpoint: string,
+    params?: Record<string, string | number | boolean | undefined>
+  ): Promise<T> {
+    let url = endpoint;
+    if (params) {
+      const searchParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== "") {
           searchParams.append(key, String(value));
         }
@@ -378,7 +408,7 @@ export interface RegisterInput {
 export const authApi = {
   async register(data: RegisterInput): Promise<AuthResponse> {
     const response = await api.post<AuthResponse>("/auth/register", data);
-    setToken(response.token);
+    setAuthToken(response.token);
     setUser(response.user);
     return response;
   },
@@ -388,7 +418,7 @@ export const authApi = {
       email,
       password,
     });
-    setToken(response.token);
+    setAuthToken(response.token);
     setUser(response.user);
     return response;
   },

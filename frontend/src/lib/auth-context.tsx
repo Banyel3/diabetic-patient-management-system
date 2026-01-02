@@ -79,6 +79,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const response = await authApi.login(email, password);
         setUser(response.user);
 
+        // Wait for localStorage write to fully propagate and React state to settle
+        // This prevents race conditions where dashboard API calls start before token is available
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
         // Redirect to stored path or dashboard
         const redirectPath = getRedirectPath();
         router.push(redirectPath);
@@ -96,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // Ignore errors during logout
     } finally {
+      clearAuth(); // Clear token and user from localStorage
       setUser(null);
       router.push("/login");
     }

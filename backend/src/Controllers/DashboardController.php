@@ -284,21 +284,22 @@ class DashboardController
 
         // Find critical lab results from last 7 days
         $criticalLabs = Database::query("
-            SELECT l.id, l.test_name, l.result_value, l.unit, l.test_date,
+            SELECT l.id, l.test_type, l.test_value, l.unit, l.test_date,
                    p.patient_code, p.first_name, p.last_name
             FROM lab_results l
             JOIN patients p ON p.id = l.patient_id
             WHERE l.clinic_id = ?
-              AND l.status = 'Critical'
+              AND l.status = 'Pending Review'
               AND l.test_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
               AND p.deleted_at IS NULL
+              AND (l.test_type = 'HbA1c' OR l.test_type = 'Blood Glucose')
             ORDER BY l.test_date DESC
             LIMIT 5
         ", [$clinicId]);
 
         return Response::json([
             'alerts' => [
-                'high_hba1c' => array_map(function($p) {
+                'high_hba1c' => !empty($highHba1c) ? array_map(function($p) {
                     return [
                         'patient_id' => (int) $p['id'],
                         'patient_code' => $p['patient_code'],
@@ -307,9 +308,9 @@ class DashboardController
                         'severity' => $p['last_hba1c'] >= 10.0 ? 'critical' : 'warning',
                         'message' => sprintf('HbA1c at %.1f%% - Immediate attention needed', $p['last_hba1c']),
                     ];
-                }, $highHba1c),
+                }, $highHba1c) : [],
                 
-                'no_recent_visit' => array_map(function($p) {
+                'no_recent_visit' => !empty($noRecentVisit) ? array_map(function($p) {
                     $days = $p['last_visit_date'] 
                         ? (new \DateTime())->diff(new \DateTime($p['last_visit_date']))->days
                         : null;
@@ -324,21 +325,21 @@ class DashboardController
                             ? sprintf('No visit in %d days - Follow-up recommended', $days)
                             : 'No recorded visits - Schedule appointment',
                     ];
-                }, $noRecentVisit),
+                }, $noRecentVisit) : [],
                 
-                'critical_labs' => array_map(function($l) {
+                'critical_labs' => !empty($criticalLabs) ? array_map(function($l) {
                     return [
                         'lab_result_id' => (int) $l['id'],
                         'patient_code' => $l['patient_code'],
                         'patient_name' => $l['first_name'] . ' ' . $l['last_name'],
-                        'test_name' => $l['test_name'],
-                        'result' => $l['result_value'] . ' ' . $l['unit'],
+                        'test_name' => $l['test_type'],
+                        'result' => $l['test_value'] . ' ' . $l['unit'],
                         'test_date' => $l['test_date'],
                         'severity' => 'critical',
                         'message' => sprintf('Critical %s result: %s %s', 
-                            $l['test_name'], $l['result_value'], $l['unit']),
+                            $l['test_type'], $l['test_value'], $l['unit']),
                     ];
-                }, $criticalLabs),
+                }, $criticalLabs) : [],
             ],
             'total_alerts' => count($highHba1c) + count($noRecentVisit) + count($criticalLabs),
         ]);
@@ -360,12 +361,12 @@ class DashboardController
             SELECT 
                 DATE_FORMAT(l.test_date, '%Y-%m') as month,
                 DATE_FORMAT(l.test_date, '%b %Y') as month_label,
-                AVG(CAST(l.result_value AS DECIMAL(4,1))) as avg_hba1c,
+                AVG(CAST(l.test_value AS DECIMAL(4,1))) as avg_hba1c,
                 COUNT(*) as test_count
             FROM lab_results l
             JOIN patients p ON p.id = l.patient_id
             WHERE l.clinic_id = ?
-              AND l.test_name = 'HbA1c'
+              AND l.test_type = 'HbA1c'
               AND l.test_date >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
               AND p.deleted_at IS NULL
             GROUP BY DATE_FORMAT(l.test_date, '%Y-%m'), DATE_FORMAT(l.test_date, '%b %Y')
@@ -373,14 +374,14 @@ class DashboardController
         ", [$clinicId, $months]);
 
         return Response::json([
-            'trends' => array_map(function($t) {
+            'trends' => !empty($trends) ? array_map(function($t) {
                 return [
                     'month' => $t['month'],
                     'label' => $t['month_label'],
                     'average_hba1c' => round((float) $t['avg_hba1c'], 1),
                     'test_count' => (int) $t['test_count'],
                 ];
-            }, $trends),
+            }, $trends) : [],
             'period_months' => $months,
         ]);
     }

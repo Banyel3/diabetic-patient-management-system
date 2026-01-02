@@ -25,8 +25,11 @@ import {
   Alert,
   HbA1cTrend,
 } from "@/lib/api";
+import { useAuthContext } from "@/lib/auth-context";
+import QuickStartBanner from "@/components/QuickStartBanner";
 
 export default function Dashboard() {
+  const { authenticated, loading: authLoading } = useAuthContext();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [upcomingAppointments, setUpcomingAppointments] = useState<
     UpcomingAppointment[]
@@ -47,25 +50,22 @@ export default function Dashboard() {
       setLoading(true);
       setError(null);
 
-      const [
-        summaryData,
-        appointmentsData,
-        patientsData,
-        alertsData,
-        trendsData,
-      ] = await Promise.all([
-        dashboardApi.getSummary(),
-        dashboardApi.getUpcomingAppointments(),
-        dashboardApi.getRecentPatients(),
-        dashboardApi.getCriticalAlerts(),
-        dashboardApi.getHbA1cTrends(6),
-      ]);
-
+      // Fetch sequentially to ensure token is available for each request
+      // This avoids race conditions where parallel requests might not all have the token
+      const summaryData = await dashboardApi.getSummary();
       setSummary(summaryData);
+
+      const appointmentsData = await dashboardApi.getUpcomingAppointments();
       setUpcomingAppointments(appointmentsData.appointments || []);
+
+      const patientsData = await dashboardApi.getRecentPatients();
       setRecentPatients(patientsData.patients || []);
+
+      const alertsData = await dashboardApi.getCriticalAlerts();
       setAlerts(alertsData.alerts);
       setTotalAlerts(alertsData.total_alerts);
+
+      const trendsData = await dashboardApi.getHbA1cTrends(6);
       setHba1cTrends(trendsData.trends || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
@@ -75,9 +75,21 @@ export default function Dashboard() {
     }
   }, []);
 
+  // Only fetch data when authenticated and auth check is complete
   useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+    if (!authLoading && authenticated) {
+      fetchDashboardData();
+    }
+  }, [fetchDashboardData, authenticated, authLoading]);
+
+  // Show loading while auth is being checked
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   // Build stats from summary
   const stats = summary
@@ -139,6 +151,9 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Quick Start Banner - shown on first login */}
+      <QuickStartBanner />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

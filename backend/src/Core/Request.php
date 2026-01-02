@@ -90,9 +90,35 @@ class Request
             }
         }
         
-        // Add content type and auth headers
+        // Add content type header
         if (isset($_SERVER['CONTENT_TYPE'])) {
             $headers['CONTENT-TYPE'] = $_SERVER['CONTENT_TYPE'];
+        }
+        
+        // Ensure Authorization header is captured (Apache sometimes drops it)
+        // Check multiple sources for the Authorization header
+        if (!isset($headers['AUTHORIZATION'])) {
+            if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+                $headers['AUTHORIZATION'] = $_SERVER['HTTP_AUTHORIZATION'];
+            } elseif (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
+                $headers['AUTHORIZATION'] = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
+            } elseif (function_exists('apache_request_headers')) {
+                $apacheHeaders = apache_request_headers();
+                foreach ($apacheHeaders as $key => $value) {
+                    if (strtoupper($key) === 'AUTHORIZATION') {
+                        $headers['AUTHORIZATION'] = $value;
+                        break;
+                    }
+                }
+            } elseif (function_exists('getallheaders')) {
+                $allHeaders = getallheaders();
+                foreach ($allHeaders as $key => $value) {
+                    if (strtoupper($key) === 'AUTHORIZATION') {
+                        $headers['AUTHORIZATION'] = $value;
+                        break;
+                    }
+                }
+            }
         }
         
         return new self($method, $uri, $query, $body, $headers);

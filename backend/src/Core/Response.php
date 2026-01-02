@@ -46,12 +46,16 @@ class Response
         int $pageSize,
         int $totalItems
     ): self {
+        $totalPages = $pageSize > 0 ? (int) ceil($totalItems / $pageSize) : 0;
         return new self([
             'items' => $items,
-            'page' => $page,
-            'page_size' => $pageSize,
-            'total_items' => $totalItems,
-            'total_pages' => (int) ceil($totalItems / $pageSize),
+            'pagination' => [
+                'current_page' => $page,
+                'page_size' => $pageSize,
+                'total_items' => $totalItems,
+                'total_pages' => $totalPages,
+                'has_more' => $page < $totalPages,
+            ],
         ]);
     }
 
