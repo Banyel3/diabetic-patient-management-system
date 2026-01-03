@@ -70,6 +70,9 @@ error.log
 playwright-report/
 test-results/
 
+# Database
+backend/database/
+
 # Misc
 *.bak
 *.tmp
