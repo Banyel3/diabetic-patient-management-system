@@ -284,15 +284,15 @@ class DashboardController
 
         // Find critical lab results from last 7 days
         $criticalLabs = Database::query("
-            SELECT l.id, l.test_type, l.test_value, l.unit, l.test_date,
+            SELECT l.id, l.test_name, l.result_value, l.unit, l.test_date,
                    p.patient_code, p.first_name, p.last_name
             FROM lab_results l
             JOIN patients p ON p.id = l.patient_id
             WHERE l.clinic_id = ?
-              AND l.status = 'Pending Review'
+              AND l.status IN ('Critical', 'Abnormal', 'Pending')
               AND l.test_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
               AND p.deleted_at IS NULL
-              AND (l.test_type = 'HbA1c' OR l.test_type = 'Blood Glucose')
+              AND (l.test_name = 'HbA1c' OR l.test_name LIKE '%Glucose%')
             ORDER BY l.test_date DESC
             LIMIT 5
         ", [$clinicId]);
@@ -332,12 +332,12 @@ class DashboardController
                         'lab_result_id' => (int) $l['id'],
                         'patient_code' => $l['patient_code'],
                         'patient_name' => $l['first_name'] . ' ' . $l['last_name'],
-                        'test_name' => $l['test_type'],
-                        'result' => $l['test_value'] . ' ' . $l['unit'],
+                        'test_name' => $l['test_name'],
+                        'result' => $l['result_value'] . ' ' . $l['unit'],
                         'test_date' => $l['test_date'],
                         'severity' => 'critical',
                         'message' => sprintf('Critical %s result: %s %s', 
-                            $l['test_type'], $l['test_value'], $l['unit']),
+                            $l['test_name'], $l['result_value'], $l['unit']),
                     ];
                 }, $criticalLabs) : [],
             ],
@@ -361,12 +361,12 @@ class DashboardController
             SELECT 
                 DATE_FORMAT(l.test_date, '%Y-%m') as month,
                 DATE_FORMAT(l.test_date, '%b %Y') as month_label,
-                AVG(CAST(l.test_value AS DECIMAL(4,1))) as avg_hba1c,
+                AVG(CAST(l.result_value AS DECIMAL(4,1))) as avg_hba1c,
                 COUNT(*) as test_count
             FROM lab_results l
             JOIN patients p ON p.id = l.patient_id
             WHERE l.clinic_id = ?
-              AND l.test_type = 'HbA1c'
+              AND l.test_name = 'HbA1c'
               AND l.test_date >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
               AND p.deleted_at IS NULL
             GROUP BY DATE_FORMAT(l.test_date, '%Y-%m'), DATE_FORMAT(l.test_date, '%b %Y')

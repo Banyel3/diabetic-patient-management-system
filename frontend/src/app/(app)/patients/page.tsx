@@ -20,6 +20,7 @@ import {
   type Patient,
   type PatientInput,
   type ApiError,
+  type FamilyHistoryDiabetes,
 } from "@/lib/api";
 
 // Initial form state for new patients
@@ -27,12 +28,14 @@ const emptyPatient: PatientInput = {
   first_name: "",
   last_name: "",
   date_of_birth: "",
-  gender: "Male",
+  gender: "male",
   phone: "",
   email: "",
   address: "",
   diabetes_type: "Type 2",
   diagnosis_date: "",
+  family_history_diabetes: "unknown",
+  family_history_notes: "",
   status: "Active",
   notes: "",
 };
@@ -111,12 +114,14 @@ export default function PatientsPage() {
       first_name: patient.first_name,
       last_name: patient.last_name,
       date_of_birth: patient.date_of_birth,
-      gender: patient.gender,
-      phone: patient.phone,
+      gender: patient.gender.toLowerCase() as PatientInput["gender"],
+      phone: patient.phone || "",
       email: patient.email,
       address: patient.address,
       diabetes_type: patient.diabetes_type,
       diagnosis_date: patient.diagnosis_date,
+      family_history_diabetes: patient.family_history_diabetes || "unknown",
+      family_history_notes: patient.family_history_notes || "",
       status: patient.status,
       notes: patient.notes,
     });
@@ -518,7 +523,7 @@ export default function PatientsPage() {
                   <div className="p-4 bg-surface-secondary rounded-xl">
                     <p className="text-xs text-text-muted mb-1">Phone</p>
                     <p className="font-medium text-text-primary">
-                      {selectedPatient.phone}
+                      {selectedPatient.phone || "Not recorded"}
                     </p>
                   </div>
                   <div className="p-4 bg-surface-secondary rounded-xl">
@@ -553,6 +558,32 @@ export default function PatientsPage() {
                         : "N/A"}
                     </p>
                   </div>
+                  <div className="p-4 bg-surface-secondary rounded-xl">
+                    <p className="text-xs text-text-muted mb-1">
+                      Family History of Diabetes
+                    </p>
+                    <p className="font-medium text-text-primary">
+                      {selectedPatient.family_history_diabetes ===
+                      "first_degree"
+                        ? "First-degree relative"
+                        : selectedPatient.family_history_diabetes ===
+                          "second_degree"
+                        ? "Second-degree relative"
+                        : selectedPatient.family_history_diabetes === "none"
+                        ? "None"
+                        : "Unknown / Not recorded"}
+                    </p>
+                  </div>
+                  {selectedPatient.family_history_notes && (
+                    <div className="p-4 bg-surface-secondary rounded-xl col-span-2">
+                      <p className="text-xs text-text-muted mb-1">
+                        Family History Notes
+                      </p>
+                      <p className="font-medium text-text-primary">
+                        {selectedPatient.family_history_notes}
+                      </p>
+                    </div>
+                  )}
                   <div className="p-4 bg-surface-secondary rounded-xl">
                     <p className="text-xs text-text-muted mb-1">Last HbA1c</p>
                     {selectedPatient.last_hba1c ? (
@@ -661,21 +692,23 @@ export default function PatientsPage() {
                       }
                       className="w-full px-4 py-2.5 bg-surface-secondary border border-border-light rounded-xl focus:outline-none focus:ring-2 focus:ring-accent"
                     >
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                      <option value="Other">Other</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-text-secondary mb-1.5">
-                      Phone *
+                      Phone
                     </label>
                     <input
                       type="tel"
-                      required
-                      value={formData.phone}
+                      value={formData.phone || ""}
                       onChange={(e) =>
-                        setFormData({ ...formData, phone: e.target.value })
+                        setFormData({
+                          ...formData,
+                          phone: e.target.value || null,
+                        })
                       }
                       className="w-full px-4 py-2.5 bg-surface-secondary border border-border-light rounded-xl focus:outline-none focus:ring-2 focus:ring-accent"
                     />
@@ -749,6 +782,61 @@ export default function PatientsPage() {
                       }
                       className="w-full px-4 py-2.5 bg-surface-secondary border border-border-light rounded-xl focus:outline-none focus:ring-2 focus:ring-accent"
                     />
+                  </div>
+
+                  {/* Family History Section */}
+                  <div className="col-span-2 border-t border-border-light pt-4 mt-2">
+                    <h3 className="text-sm font-semibold text-text-primary mb-3">
+                      Family History of Diabetes
+                    </h3>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1.5">
+                      Family History
+                    </label>
+                    <select
+                      value={formData.family_history_diabetes || "unknown"}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          family_history_diabetes: e.target
+                            .value as FamilyHistoryDiabetes,
+                        })
+                      }
+                      className="w-full px-4 py-2.5 bg-surface-secondary border border-border-light rounded-xl focus:outline-none focus:ring-2 focus:ring-accent"
+                    >
+                      <option value="unknown">Unknown / Not recorded</option>
+                      <option value="none">None</option>
+                      <option value="first_degree">
+                        First-degree relative (parent/sibling)
+                      </option>
+                      <option value="second_degree">
+                        Second-degree relative (grandparent/aunt/uncle)
+                      </option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1.5">
+                      Family History Notes
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Mother diagnosed at 45, on insulin"
+                      value={formData.family_history_notes || ""}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          family_history_notes: e.target.value || null,
+                        })
+                      }
+                      className="w-full px-4 py-2.5 bg-surface-secondary border border-border-light rounded-xl focus:outline-none focus:ring-2 focus:ring-accent"
+                    />
+                  </div>
+
+                  <div className="col-span-2 border-t border-border-light pt-4 mt-2">
+                    <h3 className="text-sm font-semibold text-text-primary mb-3">
+                      Status & Notes
+                    </h3>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-text-secondary mb-1.5">

@@ -92,6 +92,7 @@ class PatientsController
         $patients = Database::query(
             "SELECT id, patient_code, first_name, last_name, date_of_birth, gender,
                     phone, email, address, diabetes_type, diagnosis_date,
+                    family_history_diabetes, family_history_notes,
                     last_hba1c, last_hba1c_date, last_visit_date, status, notes, created_at
              FROM patients 
              WHERE {$whereClause}
@@ -126,6 +127,7 @@ class PatientsController
         $patient = Database::queryOne(
             'SELECT id, patient_code, first_name, last_name, date_of_birth, gender,
                     phone, email, address, diabetes_type, diagnosis_date,
+                    family_history_diabetes, family_history_notes,
                     last_hba1c, last_hba1c_date, last_visit_date, status, notes, created_at
              FROM patients 
              WHERE id = ? AND clinic_id = ? AND deleted_at IS NULL',
@@ -149,6 +151,9 @@ class PatientsController
         $data = $request->all();
         $clinicId = $request->clinicId;
 
+        // Validation: Only core fields are required
+        // Required: first_name, last_name, date_of_birth, gender, diabetes_type
+        // Optional: phone, email, address, diagnosis_date, vitals, family history, notes
         $validator = new Validator($data);
         $validator
             ->required('first_name')
@@ -163,7 +168,8 @@ class PatientsController
             ->inArray('diabetes_type', ['Type 1', 'Type 2', 'Gestational', 'Pre-diabetic'])
             ->email('email')
             ->date('diagnosis_date')
-            ->inArray('status', ['Active', 'Inactive']);
+            ->inArray('status', ['Active', 'Inactive'])
+            ->inArray('family_history_diabetes', ['none', 'first_degree', 'second_degree', 'unknown']);
 
         if ($validator->fails()) {
             return Response::validationError(
@@ -188,8 +194,9 @@ class PatientsController
             Database::execute(
                 'INSERT INTO patients (clinic_id, patient_code, first_name, last_name, date_of_birth, 
                                        gender, phone, email, address, diabetes_type, diagnosis_date, 
+                                       family_history_diabetes, family_history_notes,
                                        last_hba1c, status, notes)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $clinicId,
                     $patientCode,
@@ -202,6 +209,8 @@ class PatientsController
                     $data['address'] ?? null,
                     $data['diabetes_type'],
                     $data['diagnosis_date'] ?? null,
+                    $data['family_history_diabetes'] ?? 'unknown',
+                    $data['family_history_notes'] ?? null,
                     $data['last_hba1c'] ?? null,
                     $data['status'] ?? 'Active',
                     $data['notes'] ?? null,
@@ -245,6 +254,9 @@ class PatientsController
             return Response::notFound('Patient not found.');
         }
 
+        // Validation: Only core fields are required
+        // Required: first_name, last_name, date_of_birth, gender, diabetes_type
+        // Optional: phone, email, address, diagnosis_date, vitals, family history, notes
         $validator = new Validator($data);
         $validator
             ->required('first_name')
@@ -259,7 +271,8 @@ class PatientsController
             ->inArray('diabetes_type', ['Type 1', 'Type 2', 'Gestational', 'Pre-diabetic'])
             ->email('email')
             ->date('diagnosis_date')
-            ->inArray('status', ['Active', 'Inactive']);
+            ->inArray('status', ['Active', 'Inactive'])
+            ->inArray('family_history_diabetes', ['none', 'first_degree', 'second_degree', 'unknown']);
 
         if ($validator->fails()) {
             return Response::validationError(
@@ -273,6 +286,7 @@ class PatientsController
                 'UPDATE patients SET 
                     first_name = ?, last_name = ?, date_of_birth = ?, gender = ?,
                     phone = ?, email = ?, address = ?, diabetes_type = ?, diagnosis_date = ?,
+                    family_history_diabetes = ?, family_history_notes = ?,
                     last_hba1c = ?, status = ?, notes = ?, updated_at = NOW()
                  WHERE id = ? AND clinic_id = ?',
                 [
@@ -285,6 +299,8 @@ class PatientsController
                     $data['address'] ?? null,
                     $data['diabetes_type'],
                     $data['diagnosis_date'] ?? null,
+                    $data['family_history_diabetes'] ?? 'unknown',
+                    $data['family_history_notes'] ?? null,
                     $data['last_hba1c'] ?? null,
                     $data['status'] ?? 'Active',
                     $data['notes'] ?? null,
@@ -349,6 +365,7 @@ class PatientsController
         $patient = Database::queryOne(
             'SELECT id, patient_code, first_name, last_name, date_of_birth, gender,
                     phone, email, address, diabetes_type, diagnosis_date,
+                    family_history_diabetes, family_history_notes,
                     last_hba1c, last_hba1c_date, last_visit_date, status, notes, created_at
              FROM patients 
              WHERE id = ? AND clinic_id = ? AND deleted_at IS NULL',
@@ -464,6 +481,8 @@ class PatientsController
             'address' => $patient['address'],
             'diabetes_type' => $patient['diabetes_type'],
             'diagnosis_date' => $patient['diagnosis_date'],
+            'family_history_diabetes' => $patient['family_history_diabetes'] ?? 'unknown',
+            'family_history_notes' => $patient['family_history_notes'] ?? null,
             'last_hba1c' => $patient['last_hba1c'] ? (float) $patient['last_hba1c'] : null,
             'last_hba1c_date' => $patient['last_hba1c_date'] ?? null,
             'last_visit_date' => $patient['last_visit_date'] ?? null,

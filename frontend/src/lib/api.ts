@@ -70,6 +70,13 @@ export interface AuthResponse {
 // Re-export User from auth utilities
 export type { User } from "./auth";
 
+// Family history of diabetes type
+export type FamilyHistoryDiabetes =
+  | "none"
+  | "first_degree"
+  | "second_degree"
+  | "unknown";
+
 export interface Patient {
   id: number;
   patient_code: string;
@@ -79,13 +86,15 @@ export interface Patient {
   date_of_birth: string;
   age: number;
   gender: "Male" | "Female" | "Other";
-  phone: string;
+  phone: string | null;
   email: string | null;
   address: string | null;
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
   diabetes_type: "Type 1" | "Type 2" | "Pre-diabetes" | "Gestational";
   diagnosis_date: string | null;
+  family_history_diabetes: FamilyHistoryDiabetes;
+  family_history_notes: string | null;
   status: "Active" | "Inactive" | "Deceased";
   last_visit_date: string | null;
   last_hba1c: number | null;
@@ -97,14 +106,16 @@ export interface PatientInput {
   first_name: string;
   last_name: string;
   date_of_birth: string;
-  gender: "Male" | "Female" | "Other";
-  phone: string;
+  gender: "male" | "female" | "other";
+  phone?: string | null;
   email?: string | null;
   address?: string | null;
   emergency_contact_name?: string | null;
   emergency_contact_phone?: string | null;
   diabetes_type: "Type 1" | "Type 2" | "Pre-diabetes" | "Gestational";
   diagnosis_date?: string | null;
+  family_history_diabetes?: FamilyHistoryDiabetes;
+  family_history_notes?: string | null;
   status?: "Active" | "Inactive" | "Deceased";
   notes?: string | null;
 }
