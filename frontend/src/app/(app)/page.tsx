@@ -52,26 +52,67 @@ export default function Dashboard() {
       setLoading(true);
       setError(null);
 
+      // Add a small delay to ensure token is fully available after login
+      // This prevents race conditions on first load
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      console.log("[Dashboard] Starting data fetch...");
+
       // Fetch sequentially to ensure token is available for each request
       // This avoids race conditions where parallel requests might not all have the token
+      console.log("[Dashboard] Fetching summary...");
       const summaryData = await dashboardApi.getSummary();
       setSummary(summaryData);
+      console.log("[Dashboard] Summary loaded");
 
+      console.log("[Dashboard] Fetching appointments...");
       const appointmentsData = await dashboardApi.getUpcomingAppointments();
       setUpcomingAppointments(appointmentsData.appointments || []);
+      console.log("[Dashboard] Appointments loaded");
 
+      console.log("[Dashboard] Fetching recent patients...");
       const patientsData = await dashboardApi.getRecentPatients();
       setRecentPatients(patientsData.patients || []);
+      console.log("[Dashboard] Recent patients loaded");
 
+      console.log("[Dashboard] Fetching critical alerts...");
       const alertsData = await dashboardApi.getCriticalAlerts();
       setAlerts(alertsData.alerts);
       setTotalAlerts(alertsData.total_alerts);
+      console.log("[Dashboard] Critical alerts loaded");
 
+      console.log("[Dashboard] Fetching HbA1c trends...");
       const trendsData = await dashboardApi.getHbA1cTrends(6);
       setHba1cTrends(trendsData.trends || []);
+      console.log("[Dashboard] HbA1c trends loaded");
+
+      console.log("[Dashboard] All data loaded successfully!");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load dashboard");
-      console.error("Dashboard error:", err);
+      // Log detailed error information for debugging
+      console.error("Dashboard loading error:", err);
+      console.error("Error type:", typeof err);
+      console.error("Error constructor:", err?.constructor?.name);
+      console.error("Error keys:", err ? Object.keys(err) : "null");
+      console.error("Error JSON:", JSON.stringify(err, null, 2));
+
+      if (err && typeof err === "object") {
+        // Check if it's an ApiError with a message
+        if ("message" in err && typeof (err as any).message === "string") {
+          setError((err as any).message);
+        } else if ("code" in err && (err as any).code === "NETWORK_ERROR") {
+          setError(
+            "Unable to connect to the server. Please check your connection."
+          );
+        } else if ("status" in err) {
+          setError(`Server error (${(err as any).status}). Please try again.`);
+        } else {
+          setError("We couldn't load your dashboard. Please try again.");
+        }
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An unexpected error occurred. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

@@ -298,6 +298,8 @@ class ApiClient {
     const token = getToken();
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
+    } else {
+      console.warn(`[API] No token available for ${method} ${endpoint}`);
     }
 
     const config: RequestInit = {
@@ -318,12 +320,56 @@ class ApiClient {
         return {} as T;
       }
 
-      const json = await response.json();
+      // Try to parse JSON response
+      let json: any;
+      try {
+        json = await response.json();
+      } catch (parseError) {
+        // If JSON parsing fails, it's likely a network/server error
+        console.error("[API] Failed to parse JSON response:", parseError);
+        throw {
+          code: "PARSE_ERROR",
+          message: "Invalid response from server. Please try again.",
+          details: { parseError, status: response.status },
+        } as ApiError;
+      }
 
       if (!response.ok) {
+        // Handle token expiration - clear auth and redirect to login
+        if (response.status === 401 && json.code === "TOKEN_EXPIRED") {
+          // Clear auth state
+          clearAuth();
+
+          // Redirect to login if we're in the browser (not during SSR)
+          if (typeof window !== "undefined") {
+            // Store current path for redirect after login
+            const currentPath = window.location.pathname;
+            if (currentPath !== "/login") {
+              sessionStorage.setItem("redirect_after_login", currentPath);
+            }
+            // Use replace to prevent back button issues
+            window.location.replace("/login");
+
+            // Return a never-resolving promise to prevent error handling in calling code
+            // since we're already navigating away
+            return new Promise<T>(() => {});
+          }
+
+          // If not in browser (SSR), throw the error
+          const error: ApiError = {
+            code: json.code || "TOKEN_EXPIRED",
+            message:
+              json.message || "Your session has expired. Please log in again.",
+            errors: json.errors,
+          };
+          throw error;
+        }
+
         // Retry on 401 for GET requests (may be a race condition)
+        // But not if it's a TOKEN_EXPIRED error
         if (
           response.status === 401 &&
+          json.code !== "TOKEN_EXPIRED" &&
           method === "GET" &&
           retryCount < this.maxRetries
         ) {
@@ -347,9 +393,34 @@ class ApiClient {
 
       return json as T;
     } catch (error) {
-      if ((error as ApiError).code) {
+      // Log the error for debugging
+      console.error("[API] Request failed:", {
+        url,
+        method,
+        error,
+        errorType: typeof error,
+        errorKeys: error && typeof error === "object" ? Object.keys(error) : [],
+      });
+
+      // If it's already a properly formatted ApiError, throw it
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        "message" in error
+      ) {
         throw error;
       }
+
+      // If it's a standard Error object
+      if (error instanceof Error) {
+        throw {
+          code: "ERROR",
+          message: error.message,
+        } as ApiError;
+      }
+
+      // For any other error type, create a network error
       throw {
         code: "NETWORK_ERROR",
         message:

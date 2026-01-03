@@ -117,9 +117,9 @@ class Response
     /**
      * Unauthorized error (401)
      */
-    public static function unauthorized(string $message = 'Authentication required'): self
+    public static function unauthorized(string $message = 'Authentication required', string $code = 'UNAUTHORIZED'): self
     {
-        return self::error('UNAUTHORIZED', $message, [], 401);
+        return self::error($code, $message, [], 401);
     }
 
     /**

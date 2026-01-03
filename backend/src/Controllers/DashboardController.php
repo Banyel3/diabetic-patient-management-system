@@ -185,36 +185,41 @@ class DashboardController
      */
     public function upcomingAppointments(Request $request): Response
     {
-        $clinicId = $request->clinicId;
-        $now = date('Y-m-d H:i:s');
+        try {
+            $clinicId = $request->clinicId;
+            $now = date('Y-m-d H:i:s');
 
-        $appointments = Database::query("
-            SELECT a.id, a.scheduled_at, a.type, a.status, a.duration_minutes,
-                   p.patient_code, p.first_name, p.last_name
-            FROM appointments a
-            JOIN patients p ON p.id = a.patient_id
-            WHERE a.clinic_id = ? 
-              AND a.scheduled_at >= ?
-              AND a.status = 'Scheduled'
-              AND p.deleted_at IS NULL
-            ORDER BY a.scheduled_at ASC
-            LIMIT 10
-        ", [$clinicId, $now]);
+            $appointments = Database::query("
+                SELECT a.id, a.scheduled_at, a.type, a.status, a.duration_minutes,
+                       p.patient_code, p.first_name, p.last_name
+                FROM appointments a
+                JOIN patients p ON p.id = a.patient_id
+                WHERE a.clinic_id = ? 
+                  AND a.scheduled_at >= ?
+                  AND a.status = 'Scheduled'
+                  AND p.deleted_at IS NULL
+                ORDER BY a.scheduled_at ASC
+                LIMIT 10
+            ", [$clinicId, $now]);
 
-        return Response::json([
-            'appointments' => array_map(function($apt) {
-                $scheduledAt = new \DateTime($apt['scheduled_at']);
-                return [
-                    'id' => (int) $apt['id'],
-                    'patient_code' => $apt['patient_code'],
-                    'patient_name' => $apt['first_name'] . ' ' . $apt['last_name'],
-                    'date' => $scheduledAt->format('Y-m-d'),
-                    'time' => $scheduledAt->format('H:i'),
-                    'type' => $apt['type'],
-                    'duration_minutes' => (int) $apt['duration_minutes'],
-                ];
-            }, $appointments),
-        ]);
+            return Response::json([
+                'appointments' => array_map(function($apt) {
+                    $scheduledAt = new \DateTime($apt['scheduled_at']);
+                    return [
+                        'id' => (int) $apt['id'],
+                        'patient_code' => $apt['patient_code'],
+                        'patient_name' => $apt['first_name'] . ' ' . $apt['last_name'],
+                        'date' => $scheduledAt->format('Y-m-d'),
+                        'time' => $scheduledAt->format('H:i'),
+                        'type' => $apt['type'],
+                        'duration_minutes' => (int) $apt['duration_minutes'],
+                    ];
+                }, $appointments),
+            ]);
+        } catch (\Exception $e) {
+            error_log("Dashboard upcoming-appointments error: " . $e->getMessage());
+            return Response::json(['appointments' => []]);
+        }
     }
 
     /**
@@ -224,29 +229,38 @@ class DashboardController
      */
     public function recentPatients(Request $request): Response
     {
-        $clinicId = $request->clinicId;
+        try {
+            $clinicId = $request->clinicId;
 
-        $patients = Database::query("
-            SELECT id, patient_code, first_name, last_name, diabetes_type, 
-                   status, last_hba1c, created_at, updated_at
-            FROM patients
-            WHERE clinic_id = ? AND deleted_at IS NULL
-            ORDER BY COALESCE(updated_at, created_at) DESC
-            LIMIT 5
-        ", [$clinicId]);
+            $patients = Database::query("
+                SELECT id, patient_code, first_name, last_name, diabetes_type, 
+                       status, last_hba1c, created_at, updated_at
+                FROM patients
+                WHERE clinic_id = ? AND deleted_at IS NULL
+                ORDER BY COALESCE(updated_at, created_at) DESC
+                LIMIT 5
+            ", [$clinicId]);
 
-        return Response::json([
-            'patients' => array_map(function($p) {
-                return [
-                    'id' => (int) $p['id'],
-                    'patient_code' => $p['patient_code'],
-                    'name' => $p['first_name'] . ' ' . $p['last_name'],
-                    'diabetes_type' => $p['diabetes_type'],
-                    'status' => $p['status'],
-                    'last_hba1c' => $p['last_hba1c'] ? (float) $p['last_hba1c'] : null,
-                ];
-            }, $patients),
-        ]);
+            return Response::json([
+                'patients' => array_map(function($p) {
+                    return [
+                        'id' => (int) $p['id'],
+                        'patient_code' => $p['patient_code'],
+                        'name' => $p['first_name'] . ' ' . $p['last_name'],
+                        'diabetes_type' => $p['diabetes_type'],
+                        'status' => $p['status'],
+                        'last_hba1c' => $p['last_hba1c'] ? (float) $p['last_hba1c'] : null,
+                    ];
+                }, $patients),
+            ]);
+        } catch (\Exception $e) {
+            error_log("Dashboard recent-patients error: " . $e->getMessage());
+            
+            // Return empty result instead of error to prevent dashboard from breaking
+            return Response::json([
+                'patients' => [],
+            ]);
+        }
     }
 
     /**
@@ -256,7 +270,8 @@ class DashboardController
      */
     public function criticalAlerts(Request $request): Response
     {
-        $clinicId = $request->clinicId;
+        try {
+            $clinicId = $request->clinicId;
 
         // Find patients with high HbA1c (>= 9.0%)
         $highHba1c = Database::query("
@@ -343,6 +358,17 @@ class DashboardController
             ],
             'total_alerts' => count($highHba1c) + count($noRecentVisit) + count($criticalLabs),
         ]);
+        } catch (\Exception $e) {
+            error_log("Dashboard critical-alerts error: " . $e->getMessage());
+            return Response::json([
+                'alerts' => [
+                    'high_hba1c' => [],
+                    'no_recent_visit' => [],
+                    'critical_labs' => [],
+                ],
+                'total_alerts' => 0,
+            ]);
+        }
     }
 
     /**
@@ -352,37 +378,45 @@ class DashboardController
      */
     public function hba1cTrends(Request $request): Response
     {
-        $clinicId = $request->clinicId;
-        $months = (int) $request->query('months', 6);
-        $months = max(1, min(24, $months)); // Limit to 1-24 months
+        try {
+            $clinicId = $request->clinicId;
+            $months = (int) $request->query('months', 6);
+            $months = max(1, min(24, $months)); // Limit to 1-24 months
 
-        // Monthly average HbA1c for the clinic
-        $trends = Database::query("
-            SELECT 
-                DATE_FORMAT(l.test_date, '%Y-%m') as month,
-                DATE_FORMAT(l.test_date, '%b %Y') as month_label,
-                AVG(CAST(l.result_value AS DECIMAL(4,1))) as avg_hba1c,
-                COUNT(*) as test_count
-            FROM lab_results l
-            JOIN patients p ON p.id = l.patient_id
-            WHERE l.clinic_id = ?
-              AND l.test_name = 'HbA1c'
-              AND l.test_date >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
-              AND p.deleted_at IS NULL
-            GROUP BY DATE_FORMAT(l.test_date, '%Y-%m'), DATE_FORMAT(l.test_date, '%b %Y')
-            ORDER BY month ASC
-        ", [$clinicId, $months]);
+            // Monthly average HbA1c for the clinic
+            $trends = Database::query("
+                SELECT 
+                    DATE_FORMAT(l.test_date, '%Y-%m') as month,
+                    DATE_FORMAT(l.test_date, '%b %Y') as month_label,
+                    AVG(CAST(l.result_value AS DECIMAL(4,1))) as avg_hba1c,
+                    COUNT(*) as test_count
+                FROM lab_results l
+                JOIN patients p ON p.id = l.patient_id
+                WHERE l.clinic_id = ?
+                  AND l.test_name = 'HbA1c'
+                  AND l.test_date >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
+                  AND p.deleted_at IS NULL
+                GROUP BY DATE_FORMAT(l.test_date, '%Y-%m'), DATE_FORMAT(l.test_date, '%b %Y')
+                ORDER BY month ASC
+            ", [$clinicId, $months]);
 
-        return Response::json([
-            'trends' => !empty($trends) ? array_map(function($t) {
-                return [
-                    'month' => $t['month'],
-                    'label' => $t['month_label'],
-                    'average_hba1c' => round((float) $t['avg_hba1c'], 1),
-                    'test_count' => (int) $t['test_count'],
-                ];
-            }, $trends) : [],
-            'period_months' => $months,
-        ]);
+            return Response::json([
+                'trends' => !empty($trends) ? array_map(function($t) {
+                    return [
+                        'month' => $t['month'],
+                        'label' => $t['month_label'],
+                        'average_hba1c' => round((float) $t['avg_hba1c'], 1),
+                        'test_count' => (int) $t['test_count'],
+                    ];
+                }, $trends) : [],
+                'period_months' => $months,
+            ]);
+        } catch (\Exception $e) {
+            error_log("Dashboard hba1c-trends error: " . $e->getMessage());
+            return Response::json([
+                'trends' => [],
+                'period_months' => $months ?? 6,
+            ]);
+        }
     }
 }

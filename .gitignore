@@ -12,6 +12,8 @@ out/
 build/
 dist/
 
+docs/
+
 # Environment files
 .env
 .env.local

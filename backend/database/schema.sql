@@ -163,6 +163,14 @@ CREATE TABLE IF NOT EXISTS patients (
     diabetes_type ENUM('Type 1', 'Type 2', 'Gestational', 'Pre-diabetic') NOT NULL,
     diagnosis_date DATE,
     
+    -- Family History of Diabetes
+    -- Values: 'none' - No known family history
+    --         'first_degree' - Parent or sibling has diabetes
+    --         'second_degree' - Grandparent, aunt, or uncle has diabetes
+    --         'unknown' - Not known or not recorded (default)
+    family_history_diabetes ENUM('none', 'first_degree', 'second_degree', 'unknown') DEFAULT 'unknown',
+    family_history_notes TEXT, -- Optional free-text notes about family history
+    
     -- Latest Clinical Values (denormalized for dashboard performance)
     -- Updated via triggers or application logic when lab results are added
     last_hba1c DECIMAL(4,2),
@@ -327,16 +335,16 @@ CREATE TABLE IF NOT EXISTS lab_results (
     patient_id INT UNSIGNED NOT NULL,
     
     -- Test Information
-    test_type VARCHAR(100) NOT NULL,
-    test_value DECIMAL(10,2) NOT NULL,
+    test_name VARCHAR(100) NOT NULL,
+    result_value VARCHAR(100) NOT NULL,
     unit VARCHAR(50) NOT NULL,
     reference_range VARCHAR(100),
     
     -- Test Date
     test_date DATE NOT NULL,
     
-    -- Review Status
-    status ENUM('Pending Review', 'Reviewed') DEFAULT 'Pending Review',
+    -- Clinical Status
+    status ENUM('Pending', 'Normal', 'Abnormal', 'Critical') DEFAULT 'Pending',
     
     -- Notes
     notes TEXT,
@@ -357,17 +365,17 @@ CREATE TABLE IF NOT EXISTS lab_results (
     -- idx_lab_results_clinic_date: Primary index for date-based queries.
     -- Supports listing recent lab results in date order.
     -- 
-    -- idx_lab_results_clinic_status: Supports filtering by pending/reviewed.
+    -- idx_lab_results_clinic_status: Supports filtering by status.
     -- Critical for the "Pending Lab Results" dashboard count.
     -- 
-    -- idx_lab_results_clinic_type: Supports filtering by test type.
+    -- idx_lab_results_clinic_test: Supports filtering by test name.
     -- Used in lab results page type dropdown.
     -- 
     -- idx_lab_results_patient_date: Supports viewing lab history for a patient.
     -- =========================================================================
     INDEX idx_lab_results_clinic_date (clinic_id, test_date),
     INDEX idx_lab_results_clinic_status (clinic_id, status),
-    INDEX idx_lab_results_clinic_type (clinic_id, test_type),
+    INDEX idx_lab_results_clinic_test (clinic_id, test_name),
     INDEX idx_lab_results_patient_date (patient_id, test_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -417,10 +425,10 @@ BEGIN
     UPDATE patients p
     SET 
         last_hba1c = (
-            SELECT lr.test_value 
+            SELECT lr.result_value 
             FROM lab_results lr 
             WHERE lr.patient_id = p_patient_id 
-              AND lr.test_type = 'HbA1c'
+              AND lr.test_name = 'HbA1c'
             ORDER BY lr.test_date DESC 
             LIMIT 1
         ),
@@ -428,7 +436,7 @@ BEGIN
             SELECT lr.test_date 
             FROM lab_results lr 
             WHERE lr.patient_id = p_patient_id 
-              AND lr.test_type = 'HbA1c'
+              AND lr.test_name = 'HbA1c'
             ORDER BY lr.test_date DESC 
             LIMIT 1
         )
@@ -448,7 +456,7 @@ CREATE TRIGGER IF NOT EXISTS trg_lab_results_after_insert
 AFTER INSERT ON lab_results
 FOR EACH ROW
 BEGIN
-    IF NEW.test_type = 'HbA1c' THEN
+    IF NEW.test_name = 'HbA1c' THEN
         CALL update_patient_last_hba1c(NEW.patient_id);
     END IF;
 END //
@@ -457,7 +465,7 @@ CREATE TRIGGER IF NOT EXISTS trg_lab_results_after_update
 AFTER UPDATE ON lab_results
 FOR EACH ROW
 BEGIN
-    IF NEW.test_type = 'HbA1c' OR OLD.test_type = 'HbA1c' THEN
+    IF NEW.test_name = 'HbA1c' OR OLD.test_name = 'HbA1c' THEN
         CALL update_patient_last_hba1c(NEW.patient_id);
     END IF;
 END //

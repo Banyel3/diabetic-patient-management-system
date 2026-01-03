@@ -50,20 +50,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Try to get user from localStorage first
-      const cachedUser = getUser();
-      if (cachedUser) {
-        setUser(cachedUser);
-        setLoading(false);
-        return;
-      }
-
-      // Validate token with backend
+      // Validate token with backend to ensure it's not expired
+      // This will catch expired tokens immediately on page load
       try {
         const userData = await authApi.me();
         setUser(userData);
-      } catch {
-        clearAuth();
+      } catch (err) {
+        // If token is expired or invalid, clear auth state
+        // The API client will have already redirected to login for TOKEN_EXPIRED
+        // But we still need to clear local state
+        const error = err as ApiError;
+        if (error.code === "TOKEN_EXPIRED" || error.code === "UNAUTHORIZED") {
+          clearAuth();
+          setUser(null);
+        }
       } finally {
         setLoading(false);
       }
@@ -79,11 +79,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const response = await authApi.login(email, password);
         setUser(response.user);
 
-        // Wait for localStorage write to fully propagate and React state to settle
-        // This prevents race conditions where dashboard API calls start before token is available
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
-        // Redirect to stored path or dashboard
+        // State is now updated, redirect immediately
+        // The dashboard will wait for authenticated state before loading
         const redirectPath = getRedirectPath();
         router.push(redirectPath);
       } catch (err) {

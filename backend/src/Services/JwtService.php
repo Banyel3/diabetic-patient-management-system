@@ -52,14 +52,17 @@ class JwtService
 
     /**
      * Validate and decode JWT token
-     * Returns payload array or null if invalid
+     * Returns payload array or throws exception
+     * 
+     * @throws \Exception with code 'TOKEN_EXPIRED' if token is expired
+     * @throws \Exception with code 'TOKEN_INVALID' if token is invalid
      */
     public function validateToken(string $token): ?array
     {
         $parts = explode('.', $token);
         
         if (count($parts) !== 3) {
-            return null;
+            throw new \Exception('TOKEN_INVALID: Invalid token format');
         }
 
         [$header, $payload, $signature] = $parts;
@@ -70,19 +73,23 @@ class JwtService
         );
 
         if (!hash_equals($expectedSignature, $signature)) {
-            return null;
+            throw new \Exception('TOKEN_INVALID: Invalid token signature');
         }
 
         // Decode payload
         $payloadData = json_decode($this->base64UrlDecode($payload), true);
         
         if (!$payloadData) {
-            return null;
+            throw new \Exception('TOKEN_INVALID: Invalid token payload');
         }
 
-        // Check expiration
-        if (isset($payloadData['exp']) && $payloadData['exp'] < time()) {
-            return null;
+        // Check expiration - CRITICAL: This must happen before any other checks
+        if (!isset($payloadData['exp'])) {
+            throw new \Exception('TOKEN_INVALID: Token missing expiration claim');
+        }
+        
+        if ($payloadData['exp'] < time()) {
+            throw new \Exception('TOKEN_EXPIRED: Token has expired');
         }
 
         return $payloadData;

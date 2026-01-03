@@ -31,13 +31,19 @@ class AuthMiddleware
         $token = $request->bearerToken();
 
         if (!$token) {
-            return Response::unauthorized('Authentication token is required.');
+            return Response::unauthorized('Authentication token is required.', 'TOKEN_MISSING');
         }
 
-        $payload = $this->jwtService->validateToken($token);
-
-        if (!$payload) {
-            return Response::unauthorized('Invalid or expired authentication token.');
+        try {
+            $payload = $this->jwtService->validateToken($token);
+        } catch (\Exception $e) {
+            // Check if the exception message contains an error code prefix
+            if (str_starts_with($e->getMessage(), 'TOKEN_EXPIRED:')) {
+                return Response::unauthorized('Authentication token has expired. Please log in again.', 'TOKEN_EXPIRED');
+            }
+            
+            // All other validation failures
+            return Response::unauthorized('Invalid authentication token.', 'TOKEN_INVALID');
         }
 
         // Populate request with auth context
