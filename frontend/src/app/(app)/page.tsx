@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   Users,
   Calendar,
@@ -29,6 +30,7 @@ import { useAuthContext } from "@/lib/auth-context";
 import QuickStartBanner from "@/components/QuickStartBanner";
 
 export default function Dashboard() {
+  const router = useRouter();
   const { authenticated, loading: authLoading } = useAuthContext();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [upcomingAppointments, setUpcomingAppointments] = useState<
@@ -231,7 +233,8 @@ export default function Dashboard() {
                   recentPatients.map((patient) => (
                     <tr
                       key={patient.id}
-                      className="border-b border-border-light/50 last:border-0 hover:bg-surface-secondary/50 transition-colors"
+                      onClick={() => router.push(`/patients/${patient.id}`)}
+                      className="border-b border-border-light/50 last:border-0 hover:bg-surface-secondary/50 transition-colors cursor-pointer"
                     >
                       <td className="py-3">
                         <div className="flex items-center gap-3">
@@ -315,7 +318,8 @@ export default function Dashboard() {
               upcomingAppointments.slice(0, 5).map((apt) => (
                 <div
                   key={apt.id}
-                  className="flex items-center gap-3 p-3 bg-surface-secondary rounded-xl hover:bg-accent/5 transition-colors"
+                  onClick={() => router.push(`/appointments`)}
+                  className="flex items-center gap-3 p-3 bg-surface-secondary rounded-xl hover:bg-accent/5 transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-2 text-text-muted">
                     <Clock className="w-4 h-4" />

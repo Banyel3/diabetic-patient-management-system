@@ -20,6 +20,7 @@ import {
   Clock,
   TrendingUp,
   Heart,
+  X,
 } from "lucide-react";
 import {
   patientsApi,
@@ -30,6 +31,8 @@ import {
   Appointment,
   Medication,
   LabResult,
+  PatientInput,
+  FamilyHistoryDiabetes,
 } from "@/lib/api";
 
 export default function PatientDetailPage() {
@@ -46,6 +49,11 @@ export default function PatientDetailPage() {
   const [activeTab, setActiveTab] = useState<
     "overview" | "appointments" | "medications" | "labs"
   >("overview");
+
+  // Edit modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editFormData, setEditFormData] = useState<PatientInput | null>(null);
 
   const fetchPatientData = useCallback(async () => {
     if (!patientId) return;
@@ -73,6 +81,49 @@ export default function PatientDetailPage() {
       setLoading(false);
     }
   }, [patientId]);
+
+  const openEditModal = () => {
+    if (!patient) return;
+    setEditFormData({
+      first_name: patient.first_name,
+      last_name: patient.last_name,
+      date_of_birth: patient.date_of_birth,
+      gender: patient.gender.toLowerCase() as "male" | "female" | "other",
+      phone: patient.phone || "",
+      email: patient.email || "",
+      address: patient.address || "",
+      diabetes_type: patient.diabetes_type,
+      diagnosis_date: patient.diagnosis_date || "",
+      family_history_diabetes: patient.family_history_diabetes || "unknown",
+      family_history_notes: patient.family_history_notes || "",
+      status: patient.status,
+      notes: patient.notes || "",
+    });
+    setShowEditModal(true);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editFormData || !patient) return;
+
+    try {
+      setSaving(true);
+      const updatedPatient = await patientsApi.update(patient.id, editFormData);
+      setPatient(updatedPatient);
+      setShowEditModal(false);
+      setEditFormData(null);
+    } catch (err) {
+      const apiError = err as { message?: string };
+      alert(apiError.message || "Failed to update patient");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEditFieldChange = (field: keyof PatientInput, value: string) => {
+    if (!editFormData) return;
+    setEditFormData({ ...editFormData, [field]: value });
+  };
 
   useEffect(() => {
     fetchPatientData();
@@ -157,13 +208,13 @@ export default function PatientDetailPage() {
             <p className="text-text-muted mt-1">{patient.patient_code}</p>
           </div>
         </div>
-        <Link
-          href={`/patients?edit=${patient.id}`}
+        <button
+          onClick={openEditModal}
           className="flex items-center gap-2 px-4 py-2.5 bg-accent text-white rounded-xl font-medium hover:bg-accent/90 transition-all"
         >
           <Edit2 className="w-4 h-4" />
           Edit Patient
-        </Link>
+        </button>
       </div>
 
       {/* Patient Info Card */}
@@ -650,6 +701,281 @@ export default function PatientDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Edit Patient Modal */}
+      {showEditModal && editFormData && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-border-light p-6 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-text-primary">
+                Edit Patient
+              </h2>
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditFormData(null);
+                }}
+                className="p-2 hover:bg-surface-secondary rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+              {/* Basic Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-1.5">
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={editFormData.first_name}
+                    onChange={(e) =>
+                      handleEditFieldChange("first_name", e.target.value)
+                    }
+                    required
+                    className="w-full px-4 py-2.5 border border-border-light rounded-xl focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-1.5">
+                    Last Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={editFormData.last_name}
+                    onChange={(e) =>
+                      handleEditFieldChange("last_name", e.target.value)
+                    }
+                    required
+                    className="w-full px-4 py-2.5 border border-border-light rounded-xl focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-1.5">
+                    Date of Birth *
+                  </label>
+                  <input
+                    type="date"
+                    value={editFormData.date_of_birth}
+                    onChange={(e) =>
+                      handleEditFieldChange("date_of_birth", e.target.value)
+                    }
+                    required
+                    className="w-full px-4 py-2.5 border border-border-light rounded-xl focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-1.5">
+                    Gender *
+                  </label>
+                  <select
+                    value={editFormData.gender}
+                    onChange={(e) =>
+                      handleEditFieldChange("gender", e.target.value)
+                    }
+                    required
+                    className="w-full px-4 py-2.5 border border-border-light rounded-xl focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none"
+                  >
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Contact Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-1.5">
+                    Phone
+                  </label>
+                  <input
+                    type="tel"
+                    value={editFormData.phone || ""}
+                    onChange={(e) =>
+                      handleEditFieldChange("phone", e.target.value)
+                    }
+                    className="w-full px-4 py-2.5 border border-border-light rounded-xl focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-1.5">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={editFormData.email || ""}
+                    onChange={(e) =>
+                      handleEditFieldChange("email", e.target.value)
+                    }
+                    className="w-full px-4 py-2.5 border border-border-light rounded-xl focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-1.5">
+                  Address
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.address || ""}
+                  onChange={(e) =>
+                    handleEditFieldChange("address", e.target.value)
+                  }
+                  className="w-full px-4 py-2.5 border border-border-light rounded-xl focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none"
+                />
+              </div>
+
+              {/* Medical Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-1.5">
+                    Diabetes Type *
+                  </label>
+                  <select
+                    value={editFormData.diabetes_type}
+                    onChange={(e) =>
+                      handleEditFieldChange("diabetes_type", e.target.value)
+                    }
+                    required
+                    className="w-full px-4 py-2.5 border border-border-light rounded-xl focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none"
+                  >
+                    <option value="Type 1">Type 1</option>
+                    <option value="Type 2">Type 2</option>
+                    <option value="Gestational">Gestational</option>
+                    <option value="Pre-diabetic">Pre-diabetic</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-1.5">
+                    Diagnosis Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editFormData.diagnosis_date || ""}
+                    onChange={(e) =>
+                      handleEditFieldChange("diagnosis_date", e.target.value)
+                    }
+                    className="w-full px-4 py-2.5 border border-border-light rounded-xl focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Family History */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-1.5">
+                    Family History of Diabetes
+                  </label>
+                  <select
+                    value={editFormData.family_history_diabetes}
+                    onChange={(e) =>
+                      handleEditFieldChange(
+                        "family_history_diabetes",
+                        e.target.value
+                      )
+                    }
+                    className="w-full px-4 py-2.5 border border-border-light rounded-xl focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none"
+                  >
+                    <option value="unknown">Unknown</option>
+                    <option value="none">None</option>
+                    <option value="first_degree">First Degree Relative</option>
+                    <option value="second_degree">
+                      Second Degree Relative
+                    </option>
+                    <option value="both">Both</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-1.5">
+                    Status
+                  </label>
+                  <select
+                    value={editFormData.status}
+                    onChange={(e) =>
+                      handleEditFieldChange("status", e.target.value)
+                    }
+                    className="w-full px-4 py-2.5 border border-border-light rounded-xl focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                    <option value="Deceased">Deceased</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-1.5">
+                  Family History Notes
+                </label>
+                <textarea
+                  value={editFormData.family_history_notes || ""}
+                  onChange={(e) =>
+                    handleEditFieldChange(
+                      "family_history_notes",
+                      e.target.value
+                    )
+                  }
+                  rows={2}
+                  className="w-full px-4 py-2.5 border border-border-light rounded-xl focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none resize-none"
+                  placeholder="Add details about family history..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-1.5">
+                  Notes
+                </label>
+                <textarea
+                  value={editFormData.notes || ""}
+                  onChange={(e) =>
+                    handleEditFieldChange("notes", e.target.value)
+                  }
+                  rows={3}
+                  className="w-full px-4 py-2.5 border border-border-light rounded-xl focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none resize-none"
+                  placeholder="Additional notes..."
+                />
+              </div>
+
+              {/* Form Actions */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditFormData(null);
+                  }}
+                  className="flex-1 px-4 py-2.5 border border-border-light text-text-secondary rounded-xl hover:bg-surface-secondary transition-colors"
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 px-4 py-2.5 bg-accent text-white rounded-xl font-medium hover:bg-accent/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
