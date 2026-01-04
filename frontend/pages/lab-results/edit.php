@@ -1,6 +1,8 @@
 <?php
 /**
  * DiabetaCare - Edit Lab Result Page
+ * 
+ * Backend expects: test_name, test_date, result_value, unit, reference_range, status, notes
  */
 
 $labResultId = (int) get('id');
@@ -11,8 +13,9 @@ if (!$labResultId) {
 
 // Fetch existing lab result
 $response = api()->getLabResult($labResultId);
-if (!$response['success']) {
-    setFlash('error', $response['error']['message'] ?? 'Lab result not found.');
+if (!safeGet($response, 'success', false)) {
+    $errorMsg = safeGet($response, 'error.message', safeStr($response, 'message', 'Lab result not found.'));
+    setFlash('error', $errorMsg);
     redirect('/lab-results');
 }
 
@@ -21,28 +24,33 @@ $pageTitle = 'Edit Lab Result';
 
 $errors = [];
 $formData = [
-    'patient_id' => $labResult['patient_id'] ?? '',
-    'test_date' => $labResult['test_date'] ?? '',
-    'test_type' => $labResult['test_type'] ?? 'HbA1c',
-    'hba1c' => $labResult['hba1c'] ?? '',
-    'fasting_glucose' => $labResult['fasting_glucose'] ?? '',
-    'random_glucose' => $labResult['random_glucose'] ?? '',
-    'cholesterol_total' => $labResult['cholesterol_total'] ?? '',
-    'cholesterol_ldl' => $labResult['cholesterol_ldl'] ?? '',
-    'cholesterol_hdl' => $labResult['cholesterol_hdl'] ?? '',
-    'triglycerides' => $labResult['triglycerides'] ?? '',
-    'creatinine' => $labResult['creatinine'] ?? '',
-    'egfr' => $labResult['egfr'] ?? '',
-    'blood_pressure_systolic' => $labResult['blood_pressure_systolic'] ?? '',
-    'blood_pressure_diastolic' => $labResult['blood_pressure_diastolic'] ?? '',
-    'weight' => $labResult['weight'] ?? '',
-    'notes' => $labResult['notes'] ?? '',
-    'status' => $labResult['status'] ?? 'Normal',
+    'patient_id' => safeInt($labResult, 'patient_id'),
+    'test_name' => safeStr($labResult, 'test_name', 'HbA1c'),
+    'test_date' => safeStr($labResult, 'test_date', ''),
+    'result_value' => safeStr($labResult, 'result_value', ''),
+    'unit' => safeStr($labResult, 'unit', ''),
+    'reference_range' => safeStr($labResult, 'reference_range', ''),
+    'status' => safeStr($labResult, 'status', 'Normal'),
+    'notes' => safeStr($labResult, 'notes', ''),
+];
+
+// Standard test references for auto-population
+$testReferences = [
+    'HbA1c' => ['unit' => '%', 'reference_range' => '< 7.0'],
+    'Fasting Glucose' => ['unit' => 'mg/dL', 'reference_range' => '70-100'],
+    'Random Glucose' => ['unit' => 'mg/dL', 'reference_range' => '< 140'],
+    'Post-meal Glucose' => ['unit' => 'mg/dL', 'reference_range' => '< 180'],
+    'Creatinine' => ['unit' => 'mg/dL', 'reference_range' => '0.7-1.3'],
+    'eGFR' => ['unit' => 'mL/min/1.73m²', 'reference_range' => '> 90'],
+    'Total Cholesterol' => ['unit' => 'mg/dL', 'reference_range' => '< 200'],
+    'LDL Cholesterol' => ['unit' => 'mg/dL', 'reference_range' => '< 100'],
+    'HDL Cholesterol' => ['unit' => 'mg/dL', 'reference_range' => '> 40'],
+    'Triglycerides' => ['unit' => 'mg/dL', 'reference_range' => '< 150'],
 ];
 
 // Fetch patients for dropdown
 $patientsResponse = api()->getPatients(['page_size' => 100]);
-$patients = $patientsResponse['success'] ? ($patientsResponse['items'] ?? []) : [];
+$patients = safeGet($patientsResponse, 'success', false) ? safeGet($patientsResponse, 'items', []) : [];
 
 // Handle form submission
 if (isPost()) {
@@ -51,41 +59,39 @@ if (isPost()) {
     } else {
         $formData = array_merge($formData, [
             'patient_id' => (int) post('patient_id'),
+            'test_name' => trim(post('test_name', '')),
             'test_date' => post('test_date', ''),
-            'test_type' => post('test_type', 'HbA1c'),
-            'hba1c' => post('hba1c', '') !== '' ? (float) post('hba1c') : null,
-            'fasting_glucose' => post('fasting_glucose', '') !== '' ? (int) post('fasting_glucose') : null,
-            'random_glucose' => post('random_glucose', '') !== '' ? (int) post('random_glucose') : null,
-            'cholesterol_total' => post('cholesterol_total', '') !== '' ? (int) post('cholesterol_total') : null,
-            'cholesterol_ldl' => post('cholesterol_ldl', '') !== '' ? (int) post('cholesterol_ldl') : null,
-            'cholesterol_hdl' => post('cholesterol_hdl', '') !== '' ? (int) post('cholesterol_hdl') : null,
-            'triglycerides' => post('triglycerides', '') !== '' ? (int) post('triglycerides') : null,
-            'creatinine' => post('creatinine', '') !== '' ? (float) post('creatinine') : null,
-            'egfr' => post('egfr', '') !== '' ? (int) post('egfr') : null,
-            'blood_pressure_systolic' => post('blood_pressure_systolic', '') !== '' ? (int) post('blood_pressure_systolic') : null,
-            'blood_pressure_diastolic' => post('blood_pressure_diastolic', '') !== '' ? (int) post('blood_pressure_diastolic') : null,
-            'weight' => post('weight', '') !== '' ? (float) post('weight') : null,
-            'notes' => trim(post('notes', '')),
+            'result_value' => trim(post('result_value', '')),
+            'unit' => trim(post('unit', '')),
+            'reference_range' => trim(post('reference_range', '')),
             'status' => post('status', 'Normal'),
+            'notes' => trim(post('notes', '')),
         ]);
         
         // Validation
         if (empty($formData['patient_id'])) {
             $errors[] = 'Please select a patient.';
         }
+        if (empty($formData['test_name'])) {
+            $errors[] = 'Test name is required.';
+        }
         if (empty($formData['test_date'])) {
             $errors[] = 'Test date is required.';
+        }
+        if (empty($formData['result_value'])) {
+            $errors[] = 'Result value is required.';
         }
         
         // Submit if no errors
         if (empty($errors)) {
             $response = api()->updateLabResult($labResultId, $formData);
             
-            if ($response['success']) {
+            if (safeGet($response, 'success', false)) {
                 setFlash('success', 'Lab result updated successfully.');
                 redirect('/lab-results');
             } else {
-                $errors[] = $response['error']['message'] ?? 'Failed to update lab result.';
+                $errorMsg = safeGet($response, 'error.message', safeStr($response, 'message', 'Failed to update lab result.'));
+                $errors[] = $errorMsg;
             }
         }
     }
@@ -94,7 +100,7 @@ if (isPost()) {
 include BASE_PATH . '/includes/layout/header.php';
 ?>
 
-<div style="max-width: 900px; margin: 0 auto;">
+<div style="max-width: 700px; margin: 0 auto;">
     <!-- Header -->
     <div class="page-header">
         <div class="flex items-center gap-4">
@@ -103,7 +109,7 @@ include BASE_PATH . '/includes/layout/header.php';
             </a>
             <div>
                 <h1 class="page-title mb-0">Edit Lab Result</h1>
-                <p class="page-subtitle"><?php echo formatDate($labResult['test_date'], 'M j, Y'); ?> - <?php echo e($labResult['test_type'] ?? 'Test'); ?></p>
+                <p class="page-subtitle"><?php echo formatDate(safeStr($labResult, 'test_date', ''), 'M j, Y'); ?> - <?php echo e(safeStr($labResult, 'test_name', 'Test')); ?></p>
             </div>
         </div>
     </div>
@@ -122,7 +128,7 @@ include BASE_PATH . '/includes/layout/header.php';
     <form method="POST" action="<?php echo baseUrl('/lab-results/edit?id=' . $labResultId); ?>">
         <?php echo csrfField(); ?>
         
-        <!-- Basic Information -->
+        <!-- Test Information -->
         <div class="card">
             <div class="card-header">
                 <h3 class="card-title">
@@ -136,12 +142,28 @@ include BASE_PATH . '/includes/layout/header.php';
                         <label class="form-label required">Patient</label>
                         <select name="patient_id" class="form-select" required>
                             <option value="">Select Patient</option>
-                            <?php foreach ($patients as $patient): ?>
-                            <option value="<?php echo $patient['id']; ?>" 
-                                    <?php echo $formData['patient_id'] == $patient['id'] ? 'selected' : ''; ?>>
-                                <?php echo e($patient['first_name'] . ' ' . $patient['last_name']); ?> 
-                                (<?php echo e($patient['patient_code']); ?>)
+                            <?php foreach ($patients as $patient): 
+                                $ptId = safeInt($patient, 'id');
+                                $ptFirstName = safeStr($patient, 'first_name', '');
+                                $ptLastName = safeStr($patient, 'last_name', '');
+                                $ptCode = safeStr($patient, 'patient_code', '');
+                            ?>
+                            <option value="<?php echo $ptId; ?>" 
+                                    <?php echo $formData['patient_id'] == $ptId ? 'selected' : ''; ?>>
+                                <?php echo e($ptFirstName . ' ' . $ptLastName); ?> 
+                                (<?php echo e($ptCode); ?>)
                             </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label required">Test Name</label>
+                        <select name="test_name" id="test_name" class="form-select" required>
+                            <option value="">Select Test</option>
+                            <?php 
+                            $testOptions = ['HbA1c', 'Fasting Glucose', 'Random Glucose', 'Post-meal Glucose', 'Creatinine', 'eGFR', 'Total Cholesterol', 'LDL Cholesterol', 'HDL Cholesterol', 'Triglycerides'];
+                            foreach ($testOptions as $test): ?>
+                            <option value="<?php echo e($test); ?>" <?php echo $formData['test_name'] === $test ? 'selected' : ''; ?>><?php echo e($test); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -150,16 +172,34 @@ include BASE_PATH . '/includes/layout/header.php';
                         <input type="date" name="test_date" class="form-input" 
                                value="<?php echo e($formData['test_date']); ?>" required>
                     </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Test Result -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i data-lucide="clipboard-list"></i>
+                    Test Result
+                </h3>
+            </div>
+            <div class="card-body">
+                <div class="form-grid">
                     <div class="form-group">
-                        <label class="form-label">Test Type</label>
-                        <select name="test_type" class="form-select">
-                            <option value="HbA1c" <?php echo $formData['test_type'] === 'HbA1c' ? 'selected' : ''; ?>>HbA1c</option>
-                            <option value="Fasting Glucose" <?php echo $formData['test_type'] === 'Fasting Glucose' ? 'selected' : ''; ?>>Fasting Glucose</option>
-                            <option value="Random Glucose" <?php echo $formData['test_type'] === 'Random Glucose' ? 'selected' : ''; ?>>Random Glucose</option>
-                            <option value="Lipid Panel" <?php echo $formData['test_type'] === 'Lipid Panel' ? 'selected' : ''; ?>>Lipid Panel</option>
-                            <option value="Kidney Function" <?php echo $formData['test_type'] === 'Kidney Function' ? 'selected' : ''; ?>>Kidney Function</option>
-                            <option value="Comprehensive Panel" <?php echo $formData['test_type'] === 'Comprehensive Panel' ? 'selected' : ''; ?>>Comprehensive Panel</option>
-                        </select>
+                        <label class="form-label required">Result Value</label>
+                        <input type="text" name="result_value" class="form-input" 
+                               value="<?php echo e($formData['result_value']); ?>" placeholder="e.g., 6.5" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Unit</label>
+                        <input type="text" name="unit" id="unit" class="form-input" 
+                               value="<?php echo e($formData['unit']); ?>" placeholder="e.g., %">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Reference Range</label>
+                        <input type="text" name="reference_range" id="reference_range" class="form-input" 
+                               value="<?php echo e($formData['reference_range']); ?>" placeholder="e.g., < 7.0">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Status</label>
@@ -169,108 +209,6 @@ include BASE_PATH . '/includes/layout/header.php';
                             <option value="Critical" <?php echo $formData['status'] === 'Critical' ? 'selected' : ''; ?>>Critical</option>
                             <option value="Pending" <?php echo $formData['status'] === 'Pending' ? 'selected' : ''; ?>>Pending</option>
                         </select>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Glucose Results -->
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title">
-                    <i data-lucide="droplet"></i>
-                    Glucose Results
-                </h3>
-            </div>
-            <div class="card-body">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label class="form-label">HbA1c (%)</label>
-                        <input type="number" name="hba1c" class="form-input" step="0.1" min="0" max="20"
-                               value="<?php echo e($formData['hba1c']); ?>" placeholder="e.g., 6.5">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Fasting Glucose (mg/dL)</label>
-                        <input type="number" name="fasting_glucose" class="form-input" min="0" max="1000"
-                               value="<?php echo e($formData['fasting_glucose']); ?>" placeholder="e.g., 100">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Random Glucose (mg/dL)</label>
-                        <input type="number" name="random_glucose" class="form-input" min="0" max="1000"
-                               value="<?php echo e($formData['random_glucose']); ?>" placeholder="e.g., 140">
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Lipid Panel -->
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title">
-                    <i data-lucide="heart"></i>
-                    Lipid Panel
-                </h3>
-            </div>
-            <div class="card-body">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label class="form-label">Total Cholesterol (mg/dL)</label>
-                        <input type="number" name="cholesterol_total" class="form-input" min="0" max="500"
-                               value="<?php echo e($formData['cholesterol_total']); ?>">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">LDL Cholesterol (mg/dL)</label>
-                        <input type="number" name="cholesterol_ldl" class="form-input" min="0" max="500"
-                               value="<?php echo e($formData['cholesterol_ldl']); ?>">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">HDL Cholesterol (mg/dL)</label>
-                        <input type="number" name="cholesterol_hdl" class="form-input" min="0" max="200"
-                               value="<?php echo e($formData['cholesterol_hdl']); ?>">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Triglycerides (mg/dL)</label>
-                        <input type="number" name="triglycerides" class="form-input" min="0" max="1000"
-                               value="<?php echo e($formData['triglycerides']); ?>">
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Kidney Function & Vitals -->
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title">
-                    <i data-lucide="activity"></i>
-                    Kidney Function & Vitals
-                </h3>
-            </div>
-            <div class="card-body">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label class="form-label">Creatinine (mg/dL)</label>
-                        <input type="number" name="creatinine" class="form-input" step="0.1" min="0" max="20"
-                               value="<?php echo e($formData['creatinine']); ?>">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">eGFR (mL/min/1.73m²)</label>
-                        <input type="number" name="egfr" class="form-input" min="0" max="200"
-                               value="<?php echo e($formData['egfr']); ?>">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Blood Pressure Systolic (mmHg)</label>
-                        <input type="number" name="blood_pressure_systolic" class="form-input" min="0" max="300"
-                               value="<?php echo e($formData['blood_pressure_systolic']); ?>">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Blood Pressure Diastolic (mmHg)</label>
-                        <input type="number" name="blood_pressure_diastolic" class="form-input" min="0" max="200"
-                               value="<?php echo e($formData['blood_pressure_diastolic']); ?>">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Weight (kg)</label>
-                        <input type="number" name="weight" class="form-input" step="0.1" min="0" max="500"
-                               value="<?php echo e($formData['weight']); ?>">
                     </div>
                 </div>
             </div>
@@ -286,7 +224,7 @@ include BASE_PATH . '/includes/layout/header.php';
             </div>
             <div class="card-body">
                 <div class="form-group">
-                    <textarea name="notes" class="form-input" rows="3"><?php echo e($formData['notes']); ?></textarea>
+                    <textarea name="notes" class="form-input" rows="3" placeholder="Optional notes..."><?php echo e($formData['notes']); ?></textarea>
                 </div>
             </div>
         </div>
@@ -300,6 +238,18 @@ include BASE_PATH . '/includes/layout/header.php';
             </button>
         </div>
     </form>
+    
+    <script>
+    // Auto-populate unit and reference range when test is selected
+    const testReferences = <?php echo json_encode($testReferences); ?>;
+    document.getElementById('test_name').addEventListener('change', function() {
+        const test = this.value;
+        if (testReferences[test]) {
+            document.getElementById('unit').value = testReferences[test].unit;
+            document.getElementById('reference_range').value = testReferences[test].reference_range;
+        }
+    });
+    </script>
 </div>
 
 <?php include BASE_PATH . '/includes/layout/footer.php'; ?>

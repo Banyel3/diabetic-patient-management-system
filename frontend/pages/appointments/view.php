@@ -11,13 +11,24 @@ if (!$appointmentId) {
 
 // Fetch appointment data
 $response = api()->getAppointment($appointmentId);
-if (!$response['success']) {
-    setFlash('error', $response['error']['message'] ?? 'Appointment not found.');
+if (!safeGet($response, 'success', false)) {
+    $errorMsg = safeGet($response, 'error.message', safeStr($response, 'message', 'Appointment not found.'));
+    setFlash('error', $errorMsg);
     redirect('/appointments');
 }
 
 $appointment = $response;
 $pageTitle = 'Appointment Details';
+
+// Extract appointment fields safely - using backend field names
+$apptDate = safeStr($appointment, 'date', '');
+$apptTime = safeStr($appointment, 'time', '');
+$apptType = safeStr($appointment, 'type', 'N/A');
+$apptStatus = safeStr($appointment, 'status', 'Unknown');
+$apptPatientId = safeInt($appointment, 'patient_id');
+$apptPatientName = safeStr($appointment, 'patient_name', 'Unknown');
+$apptDurationMinutes = safeInt($appointment, 'duration_minutes', 30);
+$apptNotes = safeStr($appointment, 'notes', '');
 
 // Get status badge class
 function getAppointmentStatusBadgeClass($status): string {
@@ -60,12 +71,12 @@ include BASE_PATH . '/includes/layout/header.php';
             <div>
                 <h1 class="page-title mb-0"><?php echo e($pageTitle); ?></h1>
                 <p class="text-muted">
-                    <?php echo formatDate($appointment['appointment_date'] ?? '', 'l, F j, Y'); ?>
+                    <?php echo formatDate($apptDate, 'l, F j, Y'); ?>
                 </p>
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <a href="<?php echo baseUrl('/appointments/' . $appointmentId . '/edit'); ?>" class="btn btn-primary">
+            <a href="<?php echo baseUrl('/appointments/edit?id=' . $appointmentId); ?>" class="btn btn-primary">
                 <i data-lucide="edit-2"></i>
                 Edit Appointment
             </a>
@@ -76,8 +87,8 @@ include BASE_PATH . '/includes/layout/header.php';
     <div class="card">
         <div class="card-header">
             <h3 class="card-title">Appointment Information</h3>
-            <span class="badge <?php echo e(getAppointmentStatusBadgeClass($appointment['status'] ?? '')); ?>">
-                <?php echo e($appointment['status'] ?? 'Unknown'); ?>
+            <span class="badge <?php echo e(getAppointmentStatusBadgeClass($apptStatus)); ?>">
+                <?php echo e($apptStatus); ?>
             </span>
         </div>
         <div class="card-body">
@@ -85,37 +96,33 @@ include BASE_PATH . '/includes/layout/header.php';
                 <div class="info-item">
                     <label>Patient</label>
                     <p>
-                        <a href="<?php echo baseUrl('/patients/' . ($appointment['patient_id'] ?? '')); ?>" class="text-primary">
-                            <?php echo e(($appointment['patient_first_name'] ?? '') . ' ' . ($appointment['patient_last_name'] ?? '')); ?>
+                        <a href="<?php echo baseUrl('/patients/view?id=' . $apptPatientId); ?>" class="text-primary">
+                            <?php echo e($apptPatientName); ?>
                         </a>
                     </p>
                 </div>
                 <div class="info-item">
                     <label>Date</label>
-                    <p><?php echo formatDate($appointment['appointment_date'] ?? '', 'M j, Y'); ?></p>
+                    <p><?php echo formatDate($apptDate, 'M j, Y'); ?></p>
                 </div>
                 <div class="info-item">
                     <label>Time</label>
-                    <p><?php echo formatTime($appointment['appointment_time'] ?? ''); ?></p>
+                    <p><?php echo formatTime($apptTime); ?></p>
                 </div>
                 <div class="info-item">
                     <label>Type</label>
-                    <p><?php echo e($appointment['appointment_type'] ?? 'N/A'); ?></p>
+                    <p><?php echo e($apptType); ?></p>
                 </div>
                 <div class="info-item">
-                    <label>Provider</label>
-                    <p><?php echo e($appointment['provider_name'] ?? 'N/A'); ?></p>
-                </div>
-                <div class="info-item">
-                    <label>Location</label>
-                    <p><?php echo e($appointment['location'] ?? 'N/A'); ?></p>
+                    <label>Duration</label>
+                    <p><?php echo e($apptDurationMinutes); ?> minutes</p>
                 </div>
             </div>
             
-            <?php if (!empty($appointment['notes'])): ?>
+            <?php if (!empty($apptNotes)): ?>
             <div class="info-item mt-4">
                 <label>Notes</label>
-                <p><?php echo nl2br(e($appointment['notes'])); ?></p>
+                <p><?php echo nl2br(e($apptNotes)); ?></p>
             </div>
             <?php endif; ?>
         </div>

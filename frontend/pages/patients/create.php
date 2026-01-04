@@ -71,11 +71,13 @@ if (isPost()) {
         if (empty($errors)) {
             $response = api()->createPatient($formData);
             
-            if ($response['success']) {
+            if (safeGet($response, 'success', false)) {
                 setFlash('success', 'Patient created successfully.');
-                redirect('/patients/view?id=' . $response['id']);
+                $newPatientId = safeInt($response, 'id', 0);
+                redirect('/patients/view?id=' . $newPatientId);
             } else {
-                $errors[] = $response['error']['message'] ?? 'Failed to create patient.';
+                $errorMsg = safeGet($response, 'error.message', safeStr($response, 'message', 'Failed to create patient.'));
+                $errors[] = $errorMsg;
             }
         }
     }
@@ -141,9 +143,9 @@ include BASE_PATH . '/includes/layout/header.php';
                         <label class="form-label required">Gender</label>
                         <select name="gender" class="form-select" required>
                             <option value="">Select Gender</option>
-                            <option value="Male" <?php echo $formData['gender'] === 'Male' ? 'selected' : ''; ?>>Male</option>
-                            <option value="Female" <?php echo $formData['gender'] === 'Female' ? 'selected' : ''; ?>>Female</option>
-                            <option value="Other" <?php echo $formData['gender'] === 'Other' ? 'selected' : ''; ?>>Other</option>
+                            <option value="male" <?php echo $formData['gender'] === 'male' ? 'selected' : ''; ?>>Male</option>
+                            <option value="female" <?php echo $formData['gender'] === 'female' ? 'selected' : ''; ?>>Female</option>
+                            <option value="other" <?php echo $formData['gender'] === 'other' ? 'selected' : ''; ?>>Other</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -193,7 +195,6 @@ include BASE_PATH . '/includes/layout/header.php';
                         <select name="status" class="form-select">
                             <option value="Active" <?php echo $formData['status'] === 'Active' ? 'selected' : ''; ?>>Active</option>
                             <option value="Inactive" <?php echo $formData['status'] === 'Inactive' ? 'selected' : ''; ?>>Inactive</option>
-                            <option value="Critical" <?php echo $formData['status'] === 'Critical' ? 'selected' : ''; ?>>Critical</option>
                         </select>
                     </div>
                     <div class="form-group full-width">

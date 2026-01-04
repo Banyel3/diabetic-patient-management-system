@@ -55,18 +55,19 @@ if (isPost()) {
                     'terms_accepted' => true,
                 ]);
                 
-                if ($response['success']) {
+                if (safeGet($response, 'success', false)) {
                     // Clear registration session
                     unset($_SESSION['register_form']);
                     
                     // Set auth and redirect
-                    $expiresAt = is_numeric($response['expires_at']) 
-                        ? (int) $response['expires_at']
-                        : strtotime($response['expires_at']);
-                    setAuth($response['user'], $response['token'], $expiresAt);
+                    $expiresAt = safeGet($response, 'expires_at');
+                    $expiresAt = is_numeric($expiresAt) 
+                        ? (int) $expiresAt
+                        : strtotime($expiresAt);
+                    setAuth(safeGet($response, 'user', []), safeStr($response, 'token', ''), $expiresAt);
                     redirect('/');
                 } else {
-                    $error = $response['error']['message'] ?? 'Registration failed. Please try again.';
+                    $error = safeGet($response, 'error.message', safeStr($response, 'message', 'Registration failed. Please try again.'));
                 }
             }
         }

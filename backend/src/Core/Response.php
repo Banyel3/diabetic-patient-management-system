@@ -139,6 +139,14 @@ class Response
     }
 
     /**
+     * Bad request error (400)
+     */
+    public static function badRequest(string $message, array $details = []): self
+    {
+        return self::error('BAD_REQUEST', $message, $details, 400);
+    }
+
+    /**
      * Add header
      */
     public function withHeader(string $name, string $value): self

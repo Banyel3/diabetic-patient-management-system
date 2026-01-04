@@ -191,6 +191,11 @@ class ApiClient
         return $this->get('/dashboard/hba1c-trends', ['months' => $months]);
     }
 
+    public function getChartData(): array
+    {
+        return $this->get('/dashboard/chart-data');
+    }
+
     // =========================================================================
     // PATIENTS API
     // =========================================================================

@@ -33,10 +33,10 @@ $response = api()->getPatients([
     'diabetes_type' => $diabetesType ?: null,
 ]);
 
-$patients = $response['success'] ? ($response['items'] ?? []) : [];
-$pagination = $response['success'] ? ($response['pagination'] ?? []) : [];
-$totalItems = $pagination['total_items'] ?? 0;
-$totalPages = $pagination['total_pages'] ?? 1;
+$patients = safeGet($response, 'success') ? safeGet($response, 'items', []) : [];
+$pagination = safeGet($response, 'success') ? safeGet($response, 'pagination', []) : [];
+$totalItems = safeInt($pagination, 'total_items', 0);
+$totalPages = safeInt($pagination, 'total_pages', 1);
 
 $successMessage = getFlash('success');
 $errorMessage = getFlash('error');
@@ -120,55 +120,71 @@ include BASE_PATH . '/includes/layout/header.php';
             </thead>
             <tbody>
                 <?php foreach ($patients as $patient): ?>
+                <?php
+                    $patientId = safeInt($patient, 'id');
+                    $firstName = safeStr($patient, 'first_name', '');
+                    $lastName = safeStr($patient, 'last_name', '');
+                    $patientCode = safeStr($patient, 'patient_code', '');
+                    $diabetesType = safeStr($patient, 'diabetes_type', 'N/A');
+                    // Calculate age from date_of_birth
+                    $dob = safeStr($patient, 'date_of_birth', '');
+                    $age = $dob ? (new DateTime())->diff(new DateTime($dob))->y : 'N/A';
+                    $gender = safeStr($patient, 'gender', 'N/A');
+                    // Capitalize first letter for display
+                    $genderDisplay = $gender !== 'N/A' ? ucfirst($gender) : 'N/A';
+                    $phone = safeStr($patient, 'phone', 'N/A');
+                    $lastHba1c = safeFloat($patient, 'last_hba1c');
+                    $status = safeStr($patient, 'status', 'Active');
+                ?>
                 <tr>
                     <td>
                         <div class="flex items-center gap-3">
                             <div class="avatar avatar-md">
-                                <?php echo e(getInitials($patient['first_name'], $patient['last_name'])); ?>
+                                <?php echo e(getInitials($firstName, $lastName)); ?>
                             </div>
                             <div>
                                 <p class="font-medium" style="color: var(--text-primary);">
-                                    <?php echo e($patient['first_name'] . ' ' . $patient['last_name']); ?>
+                                    <?php echo e($firstName . ' ' . $lastName); ?>
                                 </p>
                                 <p class="text-xs" style="color: var(--text-muted);">
-                                    <?php echo e($patient['patient_code']); ?>
+                                    <?php echo e($patientCode); ?>
                                 </p>
                             </div>
                         </div>
                     </td>
                     <td>
-                        <span class="badge <?php echo e(getDiabetesTypeBadgeClass($patient['diabetes_type'])); ?>">
-                            <?php echo e($patient['diabetes_type']); ?>
+                        <span class="badge <?php echo e(getDiabetesTypeBadgeClass($diabetesType)); ?>">
+                            <?php echo e($diabetesType); ?>
                         </span>
                     </td>
                     <td class="text-sm" style="color: var(--text-secondary);">
-                        <?php echo e($patient['age']); ?> yrs / <?php echo e($patient['gender']); ?>
+                        <?php echo e($age); ?> yrs / <?php echo e($genderDisplay); ?>
                     </td>
                     <td class="text-sm" style="color: var(--text-secondary);">
-                        <?php echo e($patient['phone'] ?? 'N/A'); ?>
+                        <?php echo e($phone); ?>
                     </td>
                     <td>
-                        <span class="<?php echo e(getHbA1cColorClass($patient['last_hba1c'])); ?> font-semibold">
-                            <?php echo $patient['last_hba1c'] !== null ? e($patient['last_hba1c']) . '%' : 'N/A'; ?>
+                        <span class="<?php echo e(getHbA1cColorClass($lastHba1c)); ?> font-semibold">
+                            <?php echo $lastHba1c !== null ? e($lastHba1c) . '%' : 'N/A'; ?>
                         </span>
                     </td>
                     <td>
-                        <span class="badge <?php echo e(getStatusBadgeClass($patient['status'])); ?>">
-                            <?php echo e($patient['status']); ?>
+                        <span class="badge <?php echo e(getStatusBadgeClass($status)); ?>">
+                            <?php echo e($status); ?>
                         </span>
                     </td>
                     <td>
                         <div class="table-actions">
-                            <a href="<?php echo baseUrl('/patients/view?id=' . $patient['id']); ?>" 
+                            <a href="<?php echo baseUrl('/patients/' . $patientId); ?>" 
                                class="table-action-btn" title="View">
                                 <i data-lucide="eye"></i>
                             </a>
-                            <a href="<?php echo baseUrl('/patients/edit?id=' . $patient['id']); ?>" 
+                            <a href="<?php echo baseUrl('/patients/' . $patientId . '/edit'); ?>" 
                                class="table-action-btn" title="Edit">
                                 <i data-lucide="edit-2"></i>
                             </a>
                             <button type="button" class="table-action-btn danger" title="Delete"
-                                    onclick="confirmDelete(<?php echo $patient['id']; ?>, '<?php echo e($patient['first_name'] . ' ' . $patient['last_name']); ?>')">
+                                    onclick="confirmDelete(<?php echo $patientId; ?>, '<?php echo e($firstName . ' ' . $lastName); ?>')">
                                 <i data-lucide="trash-2"></i>
                             </button>
                         </div>

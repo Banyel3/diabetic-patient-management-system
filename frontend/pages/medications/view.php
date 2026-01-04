@@ -11,13 +11,26 @@ if (!$medicationId) {
 
 // Fetch medication data
 $response = api()->getMedication($medicationId);
-if (!$response['success']) {
-    setFlash('error', $response['error']['message'] ?? 'Medication not found.');
+if (!safeGet($response, 'success', false)) {
+    $errorMsg = safeGet($response, 'error.message', safeStr($response, 'message', 'Medication not found.'));
+    setFlash('error', $errorMsg);
     redirect('/medications');
 }
 
 $medication = $response;
-$pageTitle = $medication['medication_name'] ?? 'Medication Details';
+
+// Extract medication fields safely - using backend field names
+$medName = safeStr($medication, 'name', 'Medication Details');
+$medDosage = safeStr($medication, 'dosage', '');
+$medFrequency = safeStr($medication, 'frequency', '');
+$medStatus = safeStr($medication, 'status', 'Unknown');
+$medPatientId = safeInt($medication, 'patient_id');
+$medPatientName = safeStr($medication, 'patient_name', 'Unknown');
+$medStartDate = safeStr($medication, 'start_date', '');
+$medEndDate = safeStr($medication, 'end_date', '');
+$medNotes = safeStr($medication, 'notes', '');
+
+$pageTitle = $medName;
 
 // Get status badge class
 function getMedicationStatusBadgeClass($status): string {
@@ -60,12 +73,12 @@ include BASE_PATH . '/includes/layout/header.php';
             <div>
                 <h1 class="page-title mb-0"><?php echo e($pageTitle); ?></h1>
                 <p class="text-muted">
-                    <?php echo e($medication['dosage'] ?? ''); ?> - <?php echo e($medication['frequency'] ?? ''); ?>
+                    <?php echo e($medDosage); ?> - <?php echo e($medFrequency); ?>
                 </p>
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <a href="<?php echo baseUrl('/medications/' . $medicationId . '/edit'); ?>" class="btn btn-primary">
+            <a href="<?php echo baseUrl('/medications/edit?id=' . $medicationId); ?>" class="btn btn-primary">
                 <i data-lucide="edit-2"></i>
                 Edit Medication
             </a>
@@ -76,8 +89,8 @@ include BASE_PATH . '/includes/layout/header.php';
     <div class="card">
         <div class="card-header">
             <h3 class="card-title">Medication Information</h3>
-            <span class="badge <?php echo e(getMedicationStatusBadgeClass($medication['status'] ?? '')); ?>">
-                <?php echo e($medication['status'] ?? 'Unknown'); ?>
+            <span class="badge <?php echo e(getMedicationStatusBadgeClass($medStatus)); ?>">
+                <?php echo e($medStatus); ?>
             </span>
         </div>
         <div class="card-body">
@@ -85,52 +98,37 @@ include BASE_PATH . '/includes/layout/header.php';
                 <div class="info-item">
                     <label>Patient</label>
                     <p>
-                        <a href="<?php echo baseUrl('/patients/' . ($medication['patient_id'] ?? '')); ?>" class="text-primary">
-                            <?php echo e(($medication['patient_first_name'] ?? '') . ' ' . ($medication['patient_last_name'] ?? '')); ?>
+                        <a href="<?php echo baseUrl('/patients/view?id=' . $medPatientId); ?>" class="text-primary">
+                            <?php echo e($medPatientName); ?>
                         </a>
                     </p>
                 </div>
                 <div class="info-item">
                     <label>Medication Name</label>
-                    <p><?php echo e($medication['medication_name'] ?? 'N/A'); ?></p>
+                    <p><?php echo e($medName); ?></p>
                 </div>
                 <div class="info-item">
                     <label>Dosage</label>
-                    <p><?php echo e($medication['dosage'] ?? 'N/A'); ?></p>
+                    <p><?php echo e($medDosage ? $medDosage : 'N/A'); ?></p>
                 </div>
                 <div class="info-item">
                     <label>Frequency</label>
-                    <p><?php echo e($medication['frequency'] ?? 'N/A'); ?></p>
-                </div>
-                <div class="info-item">
-                    <label>Route</label>
-                    <p><?php echo e($medication['route'] ?? 'N/A'); ?></p>
+                    <p><?php echo e($medFrequency ? $medFrequency : 'N/A'); ?></p>
                 </div>
                 <div class="info-item">
                     <label>Start Date</label>
-                    <p><?php echo formatDate($medication['start_date'] ?? '', 'M j, Y'); ?></p>
+                    <p><?php echo formatDate($medStartDate, 'M j, Y'); ?></p>
                 </div>
                 <div class="info-item">
                     <label>End Date</label>
-                    <p><?php echo $medication['end_date'] ? formatDate($medication['end_date'], 'M j, Y') : 'Ongoing'; ?></p>
-                </div>
-                <div class="info-item">
-                    <label>Prescribing Doctor</label>
-                    <p><?php echo e($medication['prescribed_by'] ?? 'N/A'); ?></p>
+                    <p><?php echo $medEndDate ? formatDate($medEndDate, 'M j, Y') : 'Ongoing'; ?></p>
                 </div>
             </div>
             
-            <?php if (!empty($medication['instructions'])): ?>
-            <div class="info-item mt-4">
-                <label>Instructions</label>
-                <p><?php echo nl2br(e($medication['instructions'])); ?></p>
-            </div>
-            <?php endif; ?>
-            
-            <?php if (!empty($medication['notes'])): ?>
+            <?php if (!empty($medNotes)): ?>
             <div class="info-item mt-4">
                 <label>Notes</label>
-                <p><?php echo nl2br(e($medication['notes'])); ?></p>
+                <p><?php echo nl2br(e($medNotes)); ?></p>
             </div>
             <?php endif; ?>
         </div>

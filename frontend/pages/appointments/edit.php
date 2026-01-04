@@ -11,28 +11,33 @@ if (!$appointmentId) {
 
 // Fetch existing appointment
 $response = api()->getAppointment($appointmentId);
-if (!$response['success']) {
-    setFlash('error', $response['error']['message'] ?? 'Appointment not found.');
+if (!safeGet($response, 'success', false)) {
+    $errorMsg = safeGet($response, 'error.message', safeStr($response, 'message', 'Appointment not found.'));
+    setFlash('error', $errorMsg);
     redirect('/appointments');
 }
 
 $appointment = $response;
 $pageTitle = 'Edit Appointment';
 
+// Extract appointment fields safely - backend returns date, time, type
+$apptDate = safeStr($appointment, 'date', '');
+$apptTime = safeStr($appointment, 'time', '');
+
 $errors = [];
 $formData = [
-    'patient_id' => $appointment['patient_id'] ?? '',
-    'appointment_date' => $appointment['appointment_date'] ?? '',
-    'appointment_time' => $appointment['appointment_time'] ?? '',
-    'appointment_type' => $appointment['appointment_type'] ?? 'Check-up',
-    'provider_name' => $appointment['provider_name'] ?? '',
-    'notes' => $appointment['notes'] ?? '',
-    'status' => $appointment['status'] ?? 'Scheduled',
+    'patient_id' => safeInt($appointment, 'patient_id'),
+    'appointment_date' => $apptDate,
+    'appointment_time' => $apptTime,
+    'type' => safeStr($appointment, 'type', 'Check-up'),
+    'duration_minutes' => safeInt($appointment, 'duration_minutes', 30),
+    'notes' => safeStr($appointment, 'notes', ''),
+    'status' => safeStr($appointment, 'status', 'Scheduled'),
 ];
 
 // Fetch patients for dropdown
 $patientsResponse = api()->getPatients(['page_size' => 100]);
-$patients = $patientsResponse['success'] ? ($patientsResponse['items'] ?? []) : [];
+$patients = safeGet($patientsResponse, 'success', false) ? safeGet($patientsResponse, 'items', []) : [];
 
 // Handle form submission
 if (isPost()) {
@@ -43,8 +48,8 @@ if (isPost()) {
             'patient_id' => (int) post('patient_id'),
             'appointment_date' => post('appointment_date', ''),
             'appointment_time' => post('appointment_time', ''),
-            'appointment_type' => post('appointment_type', 'Check-up'),
-            'provider_name' => trim(post('provider_name', '')),
+            'type' => post('type', 'Check-up'),
+            'duration_minutes' => (int) post('duration_minutes', 30),
             'notes' => trim(post('notes', '')),
             'status' => post('status', 'Scheduled'),
         ]);
@@ -62,13 +67,23 @@ if (isPost()) {
         
         // Submit if no errors
         if (empty($errors)) {
-            $response = api()->updateAppointment($appointmentId, $formData);
+            // Combine date and time into scheduled_at format for backend
+            $apiData = [
+                'patient_id' => $formData['patient_id'],
+                'scheduled_at' => $formData['appointment_date'] . ' ' . $formData['appointment_time'] . ':00',
+                'type' => $formData['type'],
+                'duration_minutes' => $formData['duration_minutes'],
+                'status' => $formData['status'],
+                'notes' => $formData['notes'],
+            ];
+            $response = api()->updateAppointment($appointmentId, $apiData);
             
-            if ($response['success']) {
+            if (safeGet($response, 'success', false)) {
                 setFlash('success', 'Appointment updated successfully.');
                 redirect('/appointments');
             } else {
-                $errors[] = $response['error']['message'] ?? 'Failed to update appointment.';
+                $errorMsg = safeGet($response, 'error.message', safeStr($response, 'message', 'Failed to update appointment.'));
+                $errors[] = $errorMsg;
             }
         }
     }
@@ -86,7 +101,7 @@ include BASE_PATH . '/includes/layout/header.php';
             </a>
             <div>
                 <h1 class="page-title mb-0">Edit Appointment</h1>
-                <p class="page-subtitle"><?php echo formatDate($appointment['appointment_date'], 'M j, Y'); ?> at <?php echo formatTime($appointment['appointment_time']); ?></p>
+                <p class="page-subtitle"><?php echo formatDate($apptDate, 'M j, Y'); ?> at <?php echo formatTime($apptTime); ?></p>
             </div>
         </div>
     </div>
@@ -118,11 +133,16 @@ include BASE_PATH . '/includes/layout/header.php';
                         <label class="form-label required">Patient</label>
                         <select name="patient_id" class="form-select" required>
                             <option value="">Select Patient</option>
-                            <?php foreach ($patients as $patient): ?>
-                            <option value="<?php echo $patient['id']; ?>" 
-                                    <?php echo $formData['patient_id'] == $patient['id'] ? 'selected' : ''; ?>>
-                                <?php echo e($patient['first_name'] . ' ' . $patient['last_name']); ?> 
-                                (<?php echo e($patient['patient_code']); ?>)
+                            <?php foreach ($patients as $patient): 
+                                $ptId = safeInt($patient, 'id');
+                                $ptFirstName = safeStr($patient, 'first_name', '');
+                                $ptLastName = safeStr($patient, 'last_name', '');
+                                $ptCode = safeStr($patient, 'patient_code', '');
+                            ?>
+                            <option value="<?php echo $ptId; ?>" 
+                                    <?php echo $formData['patient_id'] == $ptId ? 'selected' : ''; ?>>
+                                <?php echo e($ptFirstName . ' ' . $ptLastName); ?> 
+                                (<?php echo e($ptCode); ?>)
                             </option>
                             <?php endforeach; ?>
                         </select>
@@ -139,26 +159,27 @@ include BASE_PATH . '/includes/layout/header.php';
                     </div>
                     <div class="form-group">
                         <label class="form-label">Appointment Type</label>
-                        <select name="appointment_type" class="form-select">
-                            <option value="Check-up" <?php echo $formData['appointment_type'] === 'Check-up' ? 'selected' : ''; ?>>Check-up</option>
-                            <option value="Follow-up" <?php echo $formData['appointment_type'] === 'Follow-up' ? 'selected' : ''; ?>>Follow-up</option>
-                            <option value="Consultation" <?php echo $formData['appointment_type'] === 'Consultation' ? 'selected' : ''; ?>>Consultation</option>
-                            <option value="Lab Work" <?php echo $formData['appointment_type'] === 'Lab Work' ? 'selected' : ''; ?>>Lab Work</option>
-                            <option value="Emergency" <?php echo $formData['appointment_type'] === 'Emergency' ? 'selected' : ''; ?>>Emergency</option>
-                            <option value="Telehealth" <?php echo $formData['appointment_type'] === 'Telehealth' ? 'selected' : ''; ?>>Telehealth</option>
+                        <select name="type" class="form-select">
+                            <option value="Check-up" <?php echo $formData['type'] === 'Check-up' ? 'selected' : ''; ?>>Check-up</option>
+                            <option value="Follow-up" <?php echo $formData['type'] === 'Follow-up' ? 'selected' : ''; ?>>Follow-up</option>
+                            <option value="Lab Review" <?php echo $formData['type'] === 'Lab Review' ? 'selected' : ''; ?>>Lab Review</option>
+                            <option value="Consultation" <?php echo $formData['type'] === 'Consultation' ? 'selected' : ''; ?>>Consultation</option>
+                            <option value="New Patient" <?php echo $formData['type'] === 'New Patient' ? 'selected' : ''; ?>>New Patient</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Provider/Doctor</label>
-                        <input type="text" name="provider_name" class="form-input" 
-                               value="<?php echo e($formData['provider_name']); ?>"
-                               placeholder="e.g., Dr. Smith">
+                        <label class="form-label">Duration (minutes)</label>
+                        <select name="duration_minutes" class="form-select">
+                            <option value="15" <?php echo $formData['duration_minutes'] === 15 ? 'selected' : ''; ?>>15 minutes</option>
+                            <option value="30" <?php echo $formData['duration_minutes'] === 30 ? 'selected' : ''; ?>>30 minutes</option>
+                            <option value="45" <?php echo $formData['duration_minutes'] === 45 ? 'selected' : ''; ?>>45 minutes</option>
+                            <option value="60" <?php echo $formData['duration_minutes'] === 60 ? 'selected' : ''; ?>>60 minutes</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Status</label>
                         <select name="status" class="form-select">
                             <option value="Scheduled" <?php echo $formData['status'] === 'Scheduled' ? 'selected' : ''; ?>>Scheduled</option>
-                            <option value="Confirmed" <?php echo $formData['status'] === 'Confirmed' ? 'selected' : ''; ?>>Confirmed</option>
                             <option value="Completed" <?php echo $formData['status'] === 'Completed' ? 'selected' : ''; ?>>Completed</option>
                             <option value="Cancelled" <?php echo $formData['status'] === 'Cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                             <option value="No-show" <?php echo $formData['status'] === 'No-show' ? 'selected' : ''; ?>>No-show</option>

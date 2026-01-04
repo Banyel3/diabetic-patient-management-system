@@ -6,6 +6,64 @@
 declare(strict_types=1);
 
 /**
+ * Safely get a nested array value using dot notation
+ * Example: arr($data, 'user.profile.name', 'Default')
+ */
+function arr(array|null $array, string $key, mixed $default = null): mixed
+{
+    if ($array === null) {
+        return $default;
+    }
+    
+    if (isset($array[$key])) {
+        return $array[$key];
+    }
+    
+    foreach (explode('.', $key) as $segment) {
+        if (!is_array($array) || !array_key_exists($segment, $array)) {
+            return $default;
+        }
+        $array = $array[$segment];
+    }
+    
+    return $array;
+}
+
+/**
+ * Safely get array value with default
+ */
+function safeGet(?array $array, string $key, mixed $default = null): mixed
+{
+    return ($array !== null && array_key_exists($key, $array)) ? $array[$key] : $default;
+}
+
+/**
+ * Safely get integer value from array
+ */
+function safeInt(?array $array, string $key, int $default = 0): int
+{
+    return (int) safeGet($array, $key, $default);
+}
+
+/**
+ * Safely get string value from array
+ */
+function safeStr(?array $array, string $key, string $default = ''): string
+{
+    $value = safeGet($array, $key, $default);
+    return is_string($value) ? $value : (string) ($value ?? $default);
+}
+
+/**
+ * Safely get float value from array
+ */
+function safeFloat(?array $array, string $key, ?float $default = null): ?float
+{
+    $value = safeGet($array, $key, $default);
+    return $value !== null ? (float) $value : $default;
+}
+
+/**
  * Check if user is authenticated
  */
 function isAuthenticated(): bool
@@ -239,6 +297,18 @@ function getPaginationData(int $currentPage, int $totalPages, int $range = 2): a
 function getInitials(string $firstName, string $lastName): string
 {
     return strtoupper(substr($firstName, 0, 1) . substr($lastName, 0, 1));
+}
+
+/**
+ * Get initials from full name string
+ */
+function getInitialsFromFullName(string $fullName): string
+{
+    $parts = explode(' ', trim($fullName));
+    if (count($parts) >= 2) {
+        return strtoupper(substr($parts[0], 0, 1) . substr(end($parts), 0, 1));
+    }
+    return strtoupper(substr($fullName, 0, 2));
 }
 
 /**

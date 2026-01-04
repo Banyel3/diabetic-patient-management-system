@@ -30,8 +30,8 @@ if (isPost() && post('action') === 'delete') {
 if (isPost() && post('action') === 'toggle_active') {
     if (validateCsrfToken(post('csrf_token'))) {
         $medicationId = (int) post('medication_id');
-        $newStatus = post('new_status') === '1';
-        $result = api()->updateMedication($medicationId, ['is_active' => $newStatus]);
+        $newStatus = post('new_status'); // 'Active' or 'Discontinued'
+        $result = api()->updateMedication($medicationId, ['status' => $newStatus]);
         if ($result['success']) {
             setFlash('success', 'Medication status updated.');
         } else {
@@ -47,17 +47,17 @@ $response = api()->getMedications([
     'page_size' => $pageSize,
     'search' => $search ?: null,
     'patient_id' => $patientId ?: null,
-    'is_active' => $activeOnly !== '' ? ($activeOnly === '1') : null,
+    'status' => $activeOnly !== '' ? ($activeOnly === '1' ? 'active' : 'discontinued') : null,
 ]);
 
-$medications = $response['success'] ? ($response['items'] ?? []) : [];
-$pagination = $response['success'] ? ($response['pagination'] ?? []) : [];
-$totalItems = $pagination['total_items'] ?? 0;
-$totalPages = $pagination['total_pages'] ?? 1;
+$medications = safeGet($response, 'success') ? safeGet($response, 'items', []) : [];
+$pagination = safeGet($response, 'success') ? safeGet($response, 'pagination', []) : [];
+$totalItems = safeInt($pagination, 'total_items', 0);
+$totalPages = safeInt($pagination, 'total_pages', 1);
 
 // Fetch patients for filter dropdown
 $patientsResponse = api()->getPatients(['page_size' => 100]);
-$patients = $patientsResponse['success'] ? ($patientsResponse['items'] ?? []) : [];
+$patients = safeGet($patientsResponse, 'success') ? safeGet($patientsResponse, 'items', []) : [];
 
 $successMessage = getFlash('success');
 $errorMessage = getFlash('error');
@@ -149,35 +149,41 @@ include BASE_PATH . '/includes/layout/header.php';
             </thead>
             <tbody>
                 <?php foreach ($medications as $medication): ?>
+                <?php
+                    $medId = safeInt($medication, 'id');
+                    $medName = safeStr($medication, 'name', 'Unknown');
+                    $medPatientId = safeInt($medication, 'patient_id');
+                    $patientName = safeStr($medication, 'patient_name', 'Unknown');
+                    $dosage = safeStr($medication, 'dosage', 'N/A');
+                    $frequency = safeStr($medication, 'frequency', 'N/A');
+                    $startDate = safeStr($medication, 'start_date', '');
+                    $medStatus = safeStr($medication, 'status', 'Active');
+                    $isActive = strtolower($medStatus) === 'active';
+                ?>
                 <tr>
                     <td>
                         <p class="font-medium" style="color: var(--text-primary);">
-                            <?php echo e($medication['medication_name']); ?>
+                            <?php echo e($medName); ?>
                         </p>
-                        <?php if (!empty($medication['category'])): ?>
-                        <p class="text-xs" style="color: var(--text-muted);">
-                            <?php echo e($medication['category']); ?>
-                        </p>
-                        <?php endif; ?>
                     </td>
                     <td>
-                        <a href="<?php echo baseUrl('/patients/view?id=' . $medication['patient_id']); ?>" 
+                        <a href="<?php echo baseUrl('/patients/' . $medPatientId); ?>" 
                            class="text-link">
-                            <?php echo e(($medication['patient_first_name'] ?? '') . ' ' . ($medication['patient_last_name'] ?? '')); ?>
+                            <?php echo e($patientName); ?>
                         </a>
                     </td>
                     <td class="text-sm" style="color: var(--text-secondary);">
-                        <?php echo e($medication['dosage']); ?>
+                        <?php echo e($dosage); ?>
                     </td>
                     <td class="text-sm" style="color: var(--text-secondary);">
-                        <?php echo e($medication['frequency']); ?>
+                        <?php echo e($frequency); ?>
                     </td>
                     <td class="text-sm" style="color: var(--text-secondary);">
-                        <?php echo formatDate($medication['start_date']); ?>
+                        <?php echo formatDate($startDate); ?>
                     </td>
                     <td>
-                        <span class="badge <?php echo $medication['is_active'] ? 'badge-success' : 'badge-secondary'; ?>">
-                            <?php echo $medication['is_active'] ? 'Active' : 'Inactive'; ?>
+                        <span class="badge <?php echo $isActive ? 'badge-success' : 'badge-secondary'; ?>">
+                            <?php echo $isActive ? 'Active' : 'Inactive'; ?>
                         </span>
                     </td>
                     <td>
@@ -185,19 +191,19 @@ include BASE_PATH . '/includes/layout/header.php';
                             <form method="POST" action="<?php echo baseUrl('/medications'); ?>" style="display: inline;">
                                 <?php echo csrfField(); ?>
                                 <input type="hidden" name="action" value="toggle_active">
-                                <input type="hidden" name="medication_id" value="<?php echo $medication['id']; ?>">
-                                <input type="hidden" name="new_status" value="<?php echo $medication['is_active'] ? '0' : '1'; ?>">
-                                <button type="submit" class="table-action-btn <?php echo $medication['is_active'] ? 'warning' : 'success'; ?>" 
-                                        title="<?php echo $medication['is_active'] ? 'Discontinue' : 'Activate'; ?>">
-                                    <i data-lucide="<?php echo $medication['is_active'] ? 'pause' : 'play'; ?>"></i>
+                                <input type="hidden" name="medication_id" value="<?php echo $medId; ?>">
+                                <input type="hidden" name="new_status" value="<?php echo $isActive ? 'discontinued' : 'active'; ?>">
+                                <button type="submit" class="table-action-btn <?php echo $isActive ? 'warning' : 'success'; ?>" 
+                                        title="<?php echo $isActive ? 'Discontinue' : 'Activate'; ?>">
+                                    <i data-lucide="<?php echo $isActive ? 'pause' : 'play'; ?>"></i>
                                 </button>
                             </form>
-                            <a href="<?php echo baseUrl('/medications/edit?id=' . $medication['id']); ?>" 
+                            <a href="<?php echo baseUrl('/medications/' . $medId . '/edit'); ?>" 
                                class="table-action-btn" title="Edit">
                                 <i data-lucide="edit-2"></i>
                             </a>
                             <button type="button" class="table-action-btn danger" title="Delete"
-                                    onclick="confirmDelete(<?php echo $medication['id']; ?>, '<?php echo e($medication['medication_name']); ?>')">
+                                    onclick="confirmDelete(<?php echo $medId; ?>, '<?php echo e($medName); ?>')">
                                 <i data-lucide="trash-2"></i>
                             </button>
                         </div>

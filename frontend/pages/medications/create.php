@@ -11,21 +11,20 @@ $preSelectedPatientId = get('patient_id', '');
 $errors = [];
 $formData = [
     'patient_id' => $preSelectedPatientId,
-    'medication_name' => '',
+    'name' => '',
     'dosage' => '',
     'frequency' => 'Once daily',
-    'category' => '',
+    'route' => 'Oral',
     'start_date' => date('Y-m-d'),
     'end_date' => '',
-    'instructions' => '',
     'prescribing_doctor' => '',
-    'is_active' => true,
+    'status' => 'active',
     'notes' => '',
 ];
 
 // Fetch patients for dropdown
 $patientsResponse = api()->getPatients(['page_size' => 100]);
-$patients = $patientsResponse['success'] ? ($patientsResponse['items'] ?? []) : [];
+$patients = safeGet($patientsResponse, 'success', false) ? safeGet($patientsResponse, 'items', []) : [];
 
 // Handle form submission
 if (isPost()) {
@@ -34,15 +33,14 @@ if (isPost()) {
     } else {
         $formData = array_merge($formData, [
             'patient_id' => (int) post('patient_id'),
-            'medication_name' => trim(post('medication_name', '')),
+            'name' => trim(post('name', '')),
             'dosage' => trim(post('dosage', '')),
             'frequency' => post('frequency', 'Once daily'),
-            'category' => trim(post('category', '')),
+            'route' => post('route', 'Oral'),
             'start_date' => post('start_date', ''),
             'end_date' => post('end_date', ''),
-            'instructions' => trim(post('instructions', '')),
             'prescribing_doctor' => trim(post('prescribing_doctor', '')),
-            'is_active' => isset($_POST['is_active']),
+            'status' => post('status', 'active'),
             'notes' => trim(post('notes', '')),
         ]);
         
@@ -50,7 +48,7 @@ if (isPost()) {
         if (empty($formData['patient_id'])) {
             $errors[] = 'Please select a patient.';
         }
-        if (empty($formData['medication_name'])) {
+        if (empty($formData['name'])) {
             $errors[] = 'Medication name is required.';
         }
         if (empty($formData['dosage'])) {
@@ -64,11 +62,12 @@ if (isPost()) {
         if (empty($errors)) {
             $response = api()->createMedication($formData);
             
-            if ($response['success']) {
+            if (safeGet($response, 'success', false)) {
                 setFlash('success', 'Medication added successfully.');
                 redirect('/medications');
             } else {
-                $errors[] = $response['error']['message'] ?? 'Failed to add medication.';
+                $errorMsg = safeGet($response, 'error.message', safeStr($response, 'message', 'Failed to add medication.'));
+                $errors[] = $errorMsg;
             }
         }
     }
@@ -118,32 +117,36 @@ include BASE_PATH . '/includes/layout/header.php';
                         <label class="form-label required">Patient</label>
                         <select name="patient_id" class="form-select" required>
                             <option value="">Select Patient</option>
-                            <?php foreach ($patients as $patient): ?>
-                            <option value="<?php echo $patient['id']; ?>" 
-                                    <?php echo $formData['patient_id'] == $patient['id'] ? 'selected' : ''; ?>>
-                                <?php echo e($patient['first_name'] . ' ' . $patient['last_name']); ?> 
-                                (<?php echo e($patient['patient_code']); ?>)
+                            <?php foreach ($patients as $patient): 
+                                $ptId = safeInt($patient, 'id');
+                                $ptFirstName = safeStr($patient, 'first_name', '');
+                                $ptLastName = safeStr($patient, 'last_name', '');
+                                $ptCode = safeStr($patient, 'patient_code', '');
+                            ?>
+                            <option value="<?php echo $ptId; ?>" 
+                                    <?php echo $formData['patient_id'] == $ptId ? 'selected' : ''; ?>>
+                                <?php echo e($ptFirstName . ' ' . $ptLastName); ?> 
+                                (<?php echo e($ptCode); ?>)
                             </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label required">Medication Name</label>
-                        <input type="text" name="medication_name" class="form-input" 
-                               value="<?php echo e($formData['medication_name']); ?>" 
+                        <input type="text" name="name" class="form-input" 
+                               value="<?php echo e($formData['name']); ?>" 
                                placeholder="e.g., Metformin" required>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Category</label>
-                        <select name="category" class="form-select">
-                            <option value="">Select Category</option>
-                            <option value="Oral Hypoglycemic" <?php echo $formData['category'] === 'Oral Hypoglycemic' ? 'selected' : ''; ?>>Oral Hypoglycemic</option>
-                            <option value="Insulin" <?php echo $formData['category'] === 'Insulin' ? 'selected' : ''; ?>>Insulin</option>
-                            <option value="GLP-1 Agonist" <?php echo $formData['category'] === 'GLP-1 Agonist' ? 'selected' : ''; ?>>GLP-1 Agonist</option>
-                            <option value="SGLT2 Inhibitor" <?php echo $formData['category'] === 'SGLT2 Inhibitor' ? 'selected' : ''; ?>>SGLT2 Inhibitor</option>
-                            <option value="DPP-4 Inhibitor" <?php echo $formData['category'] === 'DPP-4 Inhibitor' ? 'selected' : ''; ?>>DPP-4 Inhibitor</option>
-                            <option value="Supplement" <?php echo $formData['category'] === 'Supplement' ? 'selected' : ''; ?>>Supplement</option>
-                            <option value="Other" <?php echo $formData['category'] === 'Other' ? 'selected' : ''; ?>>Other</option>
+                        <label class="form-label">Route</label>
+                        <select name="route" class="form-select">
+                            <option value="Oral" <?php echo $formData['route'] === 'Oral' ? 'selected' : ''; ?>>Oral</option>
+                            <option value="Subcutaneous" <?php echo $formData['route'] === 'Subcutaneous' ? 'selected' : ''; ?>>Subcutaneous</option>
+                            <option value="Intramuscular" <?php echo $formData['route'] === 'Intramuscular' ? 'selected' : ''; ?>>Intramuscular</option>
+                            <option value="Intravenous" <?php echo $formData['route'] === 'Intravenous' ? 'selected' : ''; ?>>Intravenous</option>
+                            <option value="Topical" <?php echo $formData['route'] === 'Topical' ? 'selected' : ''; ?>>Topical</option>
+                            <option value="Inhalation" <?php echo $formData['route'] === 'Inhalation' ? 'selected' : ''; ?>>Inhalation</option>
+                            <option value="Sublingual" <?php echo $formData['route'] === 'Sublingual' ? 'selected' : ''; ?>>Sublingual</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -187,21 +190,16 @@ include BASE_PATH . '/includes/layout/header.php';
                                value="<?php echo e($formData['prescribing_doctor']); ?>"
                                placeholder="e.g., Dr. Smith">
                     </div>
-                    <div class="form-group full-width">
-                        <label class="form-label">Instructions</label>
-                        <textarea name="instructions" class="form-input" rows="2"
-                                  placeholder="e.g., Take with food, avoid grapefruit..."><?php echo e($formData['instructions']); ?></textarea>
+                    <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select name="status" class="form-select">
+                            <option value="active" <?php echo $formData['status'] === 'active' ? 'selected' : ''; ?>>Active</option>
+                        </select>
                     </div>
                     <div class="form-group full-width">
                         <label class="form-label">Notes</label>
                         <textarea name="notes" class="form-input" rows="2"
                                   placeholder="Additional notes..."><?php echo e($formData['notes']); ?></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-checkbox">
-                            <input type="checkbox" name="is_active" <?php echo $formData['is_active'] ? 'checked' : ''; ?>>
-                            <span>Active prescription</span>
-                        </label>
                     </div>
                 </div>
             </div>

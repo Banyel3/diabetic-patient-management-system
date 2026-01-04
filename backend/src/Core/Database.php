@@ -3,7 +3,7 @@
  * DiabetaCare - Database Connection Manager
  * 
  * Singleton PDO wrapper with prepared statement caching.
- * Uses MySQL with utf8mb4 encoding for full Unicode support.
+ * Supports both MySQL and SQL Server (configurable via DB_DRIVER env variable).
  */
 
 declare(strict_types=1);
@@ -18,6 +18,7 @@ class Database
 {
     private static ?PDO $connection = null;
     private static array $statementCache = [];
+    private static string $driver = 'mysql';
 
     /**
      * Initialize database connection
@@ -28,26 +29,66 @@ class Database
             return;
         }
 
+        self::$driver = strtolower(getenv('DB_DRIVER') ?: 'sqlsrv');
         $host = getenv('DB_HOST') ?: 'localhost';
-        $port = getenv('DB_PORT') ?: '3306';
-        $dbName = getenv('DB_NAME') ?: 'diabetacare';
-        $user = getenv('DB_USER') ?: 'root';
-        $password = getenv('DB_PASSWORD') ?: '';
+        $port = getenv('DB_PORT') ?: (self::$driver === 'sqlsrv' ? '1433' : '3306');
+        $dbName = getenv('DB_NAME') ?: 'DiabetaCare';
+        $user = getenv('DB_USER');
+        $password = getenv('DB_PASSWORD');
 
-        $dsn = "mysql:host={$host};port={$port};dbname={$dbName};charset=utf8mb4";
-
-        $options = [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false,
-            PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
-        ];
+        // Build DSN based on driver
+        if (self::$driver === 'sqlsrv') {
+            // SQL Server connection
+            // Handle named instances (e.g., .\SQLEXPRESS) vs TCP port
+            if (str_contains($host, '\\')) {
+                // Named instance - don't use port
+                $dsn = "sqlsrv:Server={$host};Database={$dbName};TrustServerCertificate=yes";
+            } else {
+                // Default instance with port
+                $dsn = "sqlsrv:Server={$host},{$port};Database={$dbName};TrustServerCertificate=yes";
+            }
+            $options = [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ];
+            
+            // Use Windows Authentication if no user specified
+            if (empty($user)) {
+                $user = null;
+                $password = null;
+            }
+        } else {
+            // MySQL connection (fallback)
+            $dsn = "mysql:host={$host};port={$port};dbname={$dbName};charset=utf8mb4";
+            $options = [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+                PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
+            ];
+        }
 
         try {
             self::$connection = new PDO($dsn, $user, $password, $options);
         } catch (PDOException $e) {
             throw new \RuntimeException("Database connection failed: " . $e->getMessage());
         }
+    }
+    
+    /**
+     * Get the current database driver
+     */
+    public static function getDriver(): string
+    {
+        return self::$driver;
+    }
+    
+    /**
+     * Check if using SQL Server
+     */
+    public static function isSqlServer(): bool
+    {
+        return self::$driver === 'sqlsrv';
     }
 
     /**

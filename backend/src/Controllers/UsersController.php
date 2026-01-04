@@ -12,6 +12,7 @@ namespace DiabetaCare\Controllers;
 use DiabetaCare\Core\Request;
 use DiabetaCare\Core\Response;
 use DiabetaCare\Core\Database;
+use DiabetaCare\Core\SqlHelper;
 use DiabetaCare\Services\Validator;
 
 class UsersController
@@ -56,14 +57,15 @@ class UsersController
         }
 
         // Update user profile
+        $nowFunc = SqlHelper::now();
         Database::execute(
-            'UPDATE users SET 
+            "UPDATE users SET 
                 first_name = ?,
                 last_name = ?,
                 email = ?,
                 phone = ?,
-                updated_at = NOW()
-             WHERE id = ?',
+                updated_at = {$nowFunc}
+             WHERE id = ?",
             [
                 $data['first_name'],
                 $data['last_name'],
@@ -147,8 +149,9 @@ class UsersController
         $newPasswordHash = password_hash($data['new_password'], PASSWORD_ARGON2ID);
 
         // Update password
+        $nowFunc = SqlHelper::now();
         Database::execute(
-            'UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?',
+            "UPDATE users SET password_hash = ?, updated_at = {$nowFunc} WHERE id = ?",
             [$newPasswordHash, $userId]
         );
 

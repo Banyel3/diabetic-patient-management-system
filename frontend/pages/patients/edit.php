@@ -11,31 +11,35 @@ if (!$patientId) {
 
 // Fetch existing patient
 $response = api()->getPatient($patientId);
-if (!$response['success']) {
-    setFlash('error', $response['error']['message'] ?? 'Patient not found.');
+if (!safeGet($response, 'success', false)) {
+    $errorMsg = safeGet($response, 'error.message', safeStr($response, 'message', 'Patient not found.'));
+    setFlash('error', $errorMsg);
     redirect('/patients');
 }
 
 $patient = $response;
-$pageTitle = 'Edit ' . $patient['first_name'] . ' ' . $patient['last_name'];
+$patientFirstName = safeStr($patient, 'first_name', '');
+$patientLastName = safeStr($patient, 'last_name', '');
+$patientCode = safeStr($patient, 'patient_code', '');
+$pageTitle = 'Edit ' . $patientFirstName . ' ' . $patientLastName;
 
 $errors = [];
 $formData = [
-    'first_name' => $patient['first_name'] ?? '',
-    'last_name' => $patient['last_name'] ?? '',
-    'email' => $patient['email'] ?? '',
-    'phone' => $patient['phone'] ?? '',
-    'date_of_birth' => $patient['date_of_birth'] ?? '',
-    'gender' => $patient['gender'] ?? '',
-    'address' => $patient['address'] ?? '',
-    'diabetes_type' => $patient['diabetes_type'] ?? 'Type 2',
-    'diagnosis_date' => $patient['diagnosis_date'] ?? '',
-    'medical_history' => $patient['medical_history'] ?? '',
-    'emergency_contact_name' => $patient['emergency_contact_name'] ?? '',
-    'emergency_contact_phone' => $patient['emergency_contact_phone'] ?? '',
-    'emergency_contact_relation' => $patient['emergency_contact_relation'] ?? '',
-    'notes' => $patient['notes'] ?? '',
-    'status' => $patient['status'] ?? 'Active',
+    'first_name' => safeStr($patient, 'first_name', ''),
+    'last_name' => safeStr($patient, 'last_name', ''),
+    'email' => safeStr($patient, 'email', ''),
+    'phone' => safeStr($patient, 'phone', ''),
+    'date_of_birth' => safeStr($patient, 'date_of_birth', ''),
+    'gender' => safeStr($patient, 'gender', ''),
+    'address' => safeStr($patient, 'address', ''),
+    'diabetes_type' => safeStr($patient, 'diabetes_type', 'Type 2'),
+    'diagnosis_date' => safeStr($patient, 'diagnosis_date', ''),
+    'medical_history' => safeStr($patient, 'medical_history', ''),
+    'emergency_contact_name' => safeStr($patient, 'emergency_contact_name', ''),
+    'emergency_contact_phone' => safeStr($patient, 'emergency_contact_phone', ''),
+    'emergency_contact_relation' => safeStr($patient, 'emergency_contact_relation', ''),
+    'notes' => safeStr($patient, 'notes', ''),
+    'status' => safeStr($patient, 'status', 'Active'),
 ];
 
 // Handle form submission
@@ -85,11 +89,12 @@ if (isPost()) {
         if (empty($errors)) {
             $response = api()->updatePatient($patientId, $formData);
             
-            if ($response['success']) {
+            if (safeGet($response, 'success', false)) {
                 setFlash('success', 'Patient updated successfully.');
                 redirect('/patients/view?id=' . $patientId);
             } else {
-                $errors[] = $response['error']['message'] ?? 'Failed to update patient.';
+                $errorMsg = safeGet($response, 'error.message', safeStr($response, 'message', 'Failed to update patient.'));
+                $errors[] = $errorMsg;
             }
         }
     }
@@ -107,7 +112,7 @@ include BASE_PATH . '/includes/layout/header.php';
             </a>
             <div>
                 <h1 class="page-title mb-0">Edit Patient</h1>
-                <p class="page-subtitle"><?php echo e($patient['first_name'] . ' ' . $patient['last_name']); ?> (<?php echo e($patient['patient_code']); ?>)</p>
+                <p class="page-subtitle"><?php echo e($patientFirstName . ' ' . $patientLastName); ?> (<?php echo e($patientCode); ?>)</p>
             </div>
         </div>
     </div>
@@ -155,9 +160,9 @@ include BASE_PATH . '/includes/layout/header.php';
                         <label class="form-label required">Gender</label>
                         <select name="gender" class="form-select" required>
                             <option value="">Select Gender</option>
-                            <option value="Male" <?php echo $formData['gender'] === 'Male' ? 'selected' : ''; ?>>Male</option>
-                            <option value="Female" <?php echo $formData['gender'] === 'Female' ? 'selected' : ''; ?>>Female</option>
-                            <option value="Other" <?php echo $formData['gender'] === 'Other' ? 'selected' : ''; ?>>Other</option>
+                            <option value="male" <?php echo $formData['gender'] === 'male' ? 'selected' : ''; ?>>Male</option>
+                            <option value="female" <?php echo $formData['gender'] === 'female' ? 'selected' : ''; ?>>Female</option>
+                            <option value="other" <?php echo $formData['gender'] === 'other' ? 'selected' : ''; ?>>Other</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -207,7 +212,6 @@ include BASE_PATH . '/includes/layout/header.php';
                         <select name="status" class="form-select">
                             <option value="Active" <?php echo $formData['status'] === 'Active' ? 'selected' : ''; ?>>Active</option>
                             <option value="Inactive" <?php echo $formData['status'] === 'Inactive' ? 'selected' : ''; ?>>Inactive</option>
-                            <option value="Critical" <?php echo $formData['status'] === 'Critical' ? 'selected' : ''; ?>>Critical</option>
                         </select>
                     </div>
                     <div class="form-group full-width">

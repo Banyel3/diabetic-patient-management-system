@@ -11,45 +11,42 @@ if (!$labResultId) {
 
 // Fetch lab result data
 $response = api()->getLabResult($labResultId);
-if (!$response['success']) {
-    setFlash('error', $response['error']['message'] ?? 'Lab result not found.');
+if (!safeGet($response, 'success', false)) {
+    $errorMsg = safeGet($response, 'error.message', safeStr($response, 'message', 'Lab result not found.'));
+    setFlash('error', $errorMsg);
     redirect('/lab-results');
 }
 
 $labResult = $response;
-$pageTitle = ($labResult['test_type'] ?? 'Lab Result') . ' Details';
 
-// Get value status
-function getLabResultStatus($testType, $value): array {
-    $value = (float) $value;
-    
-    // Define ranges for common tests
-    $ranges = [
-        'HbA1c' => ['low' => 0, 'normal_low' => 4.0, 'normal_high' => 5.6, 'high' => 6.5, 'unit' => '%'],
-        'Fasting Glucose' => ['low' => 0, 'normal_low' => 70, 'normal_high' => 100, 'high' => 126, 'unit' => 'mg/dL'],
-        'Random Glucose' => ['low' => 0, 'normal_low' => 70, 'normal_high' => 140, 'high' => 200, 'unit' => 'mg/dL'],
-        'Blood Pressure Systolic' => ['low' => 0, 'normal_low' => 90, 'normal_high' => 120, 'high' => 140, 'unit' => 'mmHg'],
-        'Cholesterol' => ['low' => 0, 'normal_low' => 0, 'normal_high' => 200, 'high' => 240, 'unit' => 'mg/dL'],
-    ];
-    
-    if (!isset($ranges[$testType])) {
-        return ['status' => 'unknown', 'class' => 'badge-secondary', 'message' => 'N/A'];
-    }
-    
-    $range = $ranges[$testType];
-    
-    if ($value < $range['normal_low']) {
-        return ['status' => 'low', 'class' => 'badge-warning', 'message' => 'Below Normal'];
-    } elseif ($value <= $range['normal_high']) {
-        return ['status' => 'normal', 'class' => 'badge-success', 'message' => 'Normal'];
-    } elseif ($value <= $range['high']) {
-        return ['status' => 'elevated', 'class' => 'badge-warning', 'message' => 'Elevated'];
-    } else {
-        return ['status' => 'high', 'class' => 'badge-danger', 'message' => 'High'];
+// Extract lab result fields safely - using backend field names
+$testName = safeStr($labResult, 'test_name', 'Lab Result');
+$testDate = safeStr($labResult, 'test_date', '');
+$resultValue = safeStr($labResult, 'result_value', 'N/A');
+$unit = safeStr($labResult, 'unit', '');
+$referenceRange = safeStr($labResult, 'reference_range', '');
+$labPatientId = safeInt($labResult, 'patient_id');
+$labPatientName = safeStr($labResult, 'patient_name', 'Unknown');
+$labNotes = safeStr($labResult, 'notes', '');
+$labStatus = safeStr($labResult, 'status', 'Normal');
+
+$pageTitle = $testName . ' Details';
+
+// Get status badge class based on lab status
+function getLabStatusBadgeClass($status): string {
+    switch ($status) {
+        case 'Normal':
+            return 'badge-success';
+        case 'Abnormal':
+            return 'badge-warning';
+        case 'Critical':
+            return 'badge-danger';
+        case 'Pending':
+            return 'badge-secondary';
+        default:
+            return 'badge-secondary';
     }
 }
-
-$valueStatus = getLabResultStatus($labResult['test_type'] ?? '', $labResult['value'] ?? 0);
 
 $successMessage = getFlash('success');
 $errorMessage = getFlash('error');
@@ -79,14 +76,14 @@ include BASE_PATH . '/includes/layout/header.php';
                 <i data-lucide="arrow-left"></i>
             </a>
             <div>
-                <h1 class="page-title mb-0"><?php echo e($labResult['test_type'] ?? 'Lab Result'); ?></h1>
+                <h1 class="page-title mb-0"><?php echo e($testName); ?></h1>
                 <p class="text-muted">
-                    <?php echo formatDate($labResult['test_date'] ?? '', 'l, F j, Y'); ?>
+                    <?php echo formatDate($testDate, 'l, F j, Y'); ?>
                 </p>
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <a href="<?php echo baseUrl('/lab-results/' . $labResultId . '/edit'); ?>" class="btn btn-primary">
+            <a href="<?php echo baseUrl('/lab-results/edit?id=' . $labResultId); ?>" class="btn btn-primary">
                 <i data-lucide="edit-2"></i>
                 Edit Result
             </a>
@@ -96,14 +93,17 @@ include BASE_PATH . '/includes/layout/header.php';
     <!-- Result Value Card -->
     <div class="card mb-4">
         <div class="card-body text-center py-5">
-            <div class="text-muted text-sm mb-2"><?php echo e($labResult['test_type'] ?? 'Test'); ?></div>
+            <div class="text-muted text-sm mb-2"><?php echo e($testName); ?></div>
             <div class="text-4xl font-bold mb-2">
-                <?php echo e($labResult['value'] ?? 'N/A'); ?>
-                <span class="text-lg font-normal text-muted"><?php echo e($labResult['unit'] ?? ''); ?></span>
+                <?php echo e($resultValue); ?>
+                <span class="text-lg font-normal text-muted"><?php echo e($unit); ?></span>
             </div>
-            <span class="badge <?php echo e($valueStatus['class']); ?>">
-                <?php echo e($valueStatus['message']); ?>
+            <span class="badge <?php echo e(getLabStatusBadgeClass($labStatus)); ?>">
+                <?php echo e($labStatus); ?>
             </span>
+            <?php if (!empty($referenceRange)): ?>
+            <div class="text-sm text-muted mt-2">Reference: <?php echo e($referenceRange); ?></div>
+            <?php endif; ?>
         </div>
     </div>
     
@@ -117,47 +117,39 @@ include BASE_PATH . '/includes/layout/header.php';
                 <div class="info-item">
                     <label>Patient</label>
                     <p>
-                        <a href="<?php echo baseUrl('/patients/' . ($labResult['patient_id'] ?? '')); ?>" class="text-primary">
-                            <?php echo e(($labResult['patient_first_name'] ?? '') . ' ' . ($labResult['patient_last_name'] ?? '')); ?>
+                        <a href="<?php echo baseUrl('/patients/view?id=' . $labPatientId); ?>" class="text-primary">
+                            <?php echo e($labPatientName); ?>
                         </a>
                     </p>
                 </div>
                 <div class="info-item">
                     <label>Test Date</label>
-                    <p><?php echo formatDate($labResult['test_date'] ?? '', 'M j, Y'); ?></p>
+                    <p><?php echo formatDate($testDate, 'M j, Y'); ?></p>
                 </div>
                 <div class="info-item">
-                    <label>Test Type</label>
-                    <p><?php echo e($labResult['test_type'] ?? 'N/A'); ?></p>
+                    <label>Test Name</label>
+                    <p><?php echo e($testName); ?></p>
                 </div>
                 <div class="info-item">
-                    <label>Value</label>
-                    <p><?php echo e($labResult['value'] ?? 'N/A'); ?> <?php echo e($labResult['unit'] ?? ''); ?></p>
+                    <label>Result</label>
+                    <p><?php echo e($resultValue); ?> <?php echo e($unit); ?></p>
                 </div>
-                <?php if (!empty($labResult['reference_range'])): ?>
+                <?php if (!empty($referenceRange)): ?>
                 <div class="info-item">
                     <label>Reference Range</label>
-                    <p><?php echo e($labResult['reference_range']); ?></p>
+                    <p><?php echo e($referenceRange); ?></p>
                 </div>
                 <?php endif; ?>
-                <?php if (!empty($labResult['lab_name'])): ?>
                 <div class="info-item">
-                    <label>Laboratory</label>
-                    <p><?php echo e($labResult['lab_name']); ?></p>
+                    <label>Status</label>
+                    <p><span class="badge <?php echo e(getLabStatusBadgeClass($labStatus)); ?>"><?php echo e($labStatus); ?></span></p>
                 </div>
-                <?php endif; ?>
-                <?php if (!empty($labResult['ordered_by'])): ?>
-                <div class="info-item">
-                    <label>Ordered By</label>
-                    <p><?php echo e($labResult['ordered_by']); ?></p>
-                </div>
-                <?php endif; ?>
             </div>
             
-            <?php if (!empty($labResult['notes'])): ?>
+            <?php if (!empty($labNotes)): ?>
             <div class="info-item mt-4">
                 <label>Notes</label>
-                <p><?php echo nl2br(e($labResult['notes'])); ?></p>
+                <p><?php echo nl2br(e($labNotes)); ?></p>
             </div>
             <?php endif; ?>
         </div>

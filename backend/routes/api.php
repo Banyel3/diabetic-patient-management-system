@@ -62,6 +62,7 @@ $router->group('', [AuthMiddleware::class], function($router) {
     $router->get('/api/dashboard/recent-patients', [DashboardController::class, 'recentPatients']);
     $router->get('/api/dashboard/critical-alerts', [DashboardController::class, 'criticalAlerts']);
     $router->get('/api/dashboard/hba1c-trends', [DashboardController::class, 'hba1cTrends']);
+    $router->get('/api/dashboard/chart-data', [DashboardController::class, 'chartData']);
     
     // ---------------------------------------------------------------------------
     // Patients CRUD

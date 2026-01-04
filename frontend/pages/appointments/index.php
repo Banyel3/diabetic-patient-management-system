@@ -50,10 +50,10 @@ $response = api()->getAppointments([
     'date' => $date ?: null,
 ]);
 
-$appointments = $response['success'] ? ($response['items'] ?? []) : [];
-$pagination = $response['success'] ? ($response['pagination'] ?? []) : [];
-$totalItems = $pagination['total_items'] ?? 0;
-$totalPages = $pagination['total_pages'] ?? 1;
+$appointments = safeGet($response, 'success') ? safeGet($response, 'items', []) : [];
+$pagination = safeGet($response, 'success') ? safeGet($response, 'pagination', []) : [];
+$totalItems = safeInt($pagination, 'total_items', 0);
+$totalPages = safeInt($pagination, 'total_pages', 1);
 
 $successMessage = getFlash('success');
 $errorMessage = getFlash('error');
@@ -133,71 +133,81 @@ include BASE_PATH . '/includes/layout/header.php';
                     <th>Patient</th>
                     <th>Date & Time</th>
                     <th>Type</th>
-                    <th>Provider</th>
+                    <th>Duration</th>
                     <th>Status</th>
                     <th class="text-right">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ($appointments as $appointment): ?>
+                <?php
+                    $aptId = safeInt($appointment, 'id');
+                    $patientName = safeStr($appointment, 'patient_name', 'Unknown');
+                    $patientCode = safeStr($appointment, 'patient_code', '');
+                    $appointmentDate = safeStr($appointment, 'date', '');
+                    $appointmentTime = safeStr($appointment, 'time', '');
+                    $appointmentType = safeStr($appointment, 'type', 'Check-up');
+                    $durationMinutes = safeInt($appointment, 'duration_minutes', 30);
+                    $aptStatus = safeStr($appointment, 'status', 'Scheduled');
+                ?>
                 <tr>
                     <td>
                         <div class="flex items-center gap-3">
                             <div class="avatar avatar-md">
-                                <?php echo e(getInitials($appointment['patient_first_name'] ?? 'U', $appointment['patient_last_name'] ?? 'N')); ?>
+                                <?php echo e(getInitialsFromFullName($patientName)); ?>
                             </div>
                             <div>
                                 <p class="font-medium" style="color: var(--text-primary);">
-                                    <?php echo e(($appointment['patient_first_name'] ?? '') . ' ' . ($appointment['patient_last_name'] ?? '')); ?>
+                                    <?php echo e($patientName); ?>
                                 </p>
                                 <p class="text-xs" style="color: var(--text-muted);">
-                                    <?php echo e($appointment['patient_code'] ?? ''); ?>
+                                    <?php echo e($patientCode); ?>
                                 </p>
                             </div>
                         </div>
                     </td>
                     <td>
                         <p class="font-medium" style="color: var(--text-primary);">
-                            <?php echo formatDate($appointment['appointment_date'], 'M j, Y'); ?>
+                            <?php echo formatDate($appointmentDate, 'M j, Y'); ?>
                         </p>
                         <p class="text-sm" style="color: var(--text-muted);">
-                            <?php echo formatTime($appointment['appointment_time']); ?>
+                            <?php echo formatTime($appointmentTime); ?>
                         </p>
                     </td>
                     <td class="text-sm" style="color: var(--text-secondary);">
-                        <?php echo e($appointment['appointment_type'] ?? 'Check-up'); ?>
+                        <?php echo e($appointmentType); ?>
                     </td>
                     <td class="text-sm" style="color: var(--text-secondary);">
-                        <?php echo e($appointment['provider_name'] ?? 'Unassigned'); ?>
+                        <?php echo e($durationMinutes); ?> min
                     </td>
                     <td>
-                        <span class="badge <?php echo e(getAppointmentStatusBadgeClass($appointment['status'])); ?>">
-                            <?php echo e($appointment['status']); ?>
+                        <span class="badge <?php echo e(getAppointmentStatusBadgeClass($aptStatus)); ?>">
+                            <?php echo e($aptStatus); ?>
                         </span>
                     </td>
                     <td>
                         <div class="table-actions">
-                            <?php if ($appointment['status'] === 'Scheduled'): ?>
+                            <?php if ($aptStatus === 'Scheduled'): ?>
                             <form method="POST" action="<?php echo baseUrl('/appointments'); ?>" style="display: inline;">
                                 <?php echo csrfField(); ?>
                                 <input type="hidden" name="action" value="update_status">
-                                <input type="hidden" name="appointment_id" value="<?php echo $appointment['id']; ?>">
+                                <input type="hidden" name="appointment_id" value="<?php echo $aptId; ?>">
                                 <input type="hidden" name="new_status" value="Completed">
                                 <button type="submit" class="table-action-btn success" title="Mark Complete">
                                     <i data-lucide="check"></i>
                                 </button>
                             </form>
                             <?php endif; ?>
-                            <a href="<?php echo baseUrl('/appointments/view?id=' . $appointment['id']); ?>" 
+                            <a href="<?php echo baseUrl('/appointments/' . $aptId); ?>" 
                                class="table-action-btn" title="View">
                                 <i data-lucide="eye"></i>
                             </a>
-                            <a href="<?php echo baseUrl('/appointments/edit?id=' . $appointment['id']); ?>" 
+                            <a href="<?php echo baseUrl('/appointments/' . $aptId . '/edit'); ?>" 
                                class="table-action-btn" title="Edit">
                                 <i data-lucide="edit-2"></i>
                             </a>
                             <button type="button" class="table-action-btn danger" title="Delete"
-                                    onclick="confirmDelete(<?php echo $appointment['id']; ?>)">
+                                    onclick="confirmDelete(<?php echo $aptId; ?>)">
                                 <i data-lucide="trash-2"></i>
                             </button>
                         </div>

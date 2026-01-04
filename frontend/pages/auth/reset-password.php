@@ -29,11 +29,11 @@ if (isPost()) {
         } else {
             $response = api()->resetPassword($token, $password);
             
-            if ($response['success']) {
+            if (safeGet($response, 'success', false)) {
                 setFlash('success', 'Password reset successfully. Please sign in with your new password.');
                 redirect('/login');
             } else {
-                $error = $response['error']['message'] ?? 'Failed to reset password. The link may have expired.';
+                $error = safeGet($response, 'error.message', safeStr($response, 'message', 'Failed to reset password. The link may have expired.'));
             }
         }
     }

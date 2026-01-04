@@ -35,14 +35,14 @@ $response = api()->getLabResults([
     'test_type' => $testType ?: null,
 ]);
 
-$labResults = $response['success'] ? ($response['items'] ?? []) : [];
-$pagination = $response['success'] ? ($response['pagination'] ?? []) : [];
-$totalItems = $pagination['total_items'] ?? 0;
-$totalPages = $pagination['total_pages'] ?? 1;
+$labResults = safeGet($response, 'success') ? safeGet($response, 'items', []) : [];
+$pagination = safeGet($response, 'success') ? safeGet($response, 'pagination', []) : [];
+$totalItems = safeInt($pagination, 'total_items', 0);
+$totalPages = safeInt($pagination, 'total_pages', 1);
 
 // Fetch patients for filter dropdown
 $patientsResponse = api()->getPatients(['page_size' => 100]);
-$patients = $patientsResponse['success'] ? ($patientsResponse['items'] ?? []) : [];
+$patients = safeGet($patientsResponse, 'success') ? safeGet($patientsResponse, 'items', []) : [];
 
 $successMessage = getFlash('success');
 $errorMessage = getFlash('error');
@@ -107,9 +107,13 @@ include BASE_PATH . '/includes/layout/header.php';
                 <option value="HbA1c" <?php echo $testType === 'HbA1c' ? 'selected' : ''; ?>>HbA1c</option>
                 <option value="Fasting Glucose" <?php echo $testType === 'Fasting Glucose' ? 'selected' : ''; ?>>Fasting Glucose</option>
                 <option value="Random Glucose" <?php echo $testType === 'Random Glucose' ? 'selected' : ''; ?>>Random Glucose</option>
-                <option value="Lipid Panel" <?php echo $testType === 'Lipid Panel' ? 'selected' : ''; ?>>Lipid Panel</option>
-                <option value="Kidney Function" <?php echo $testType === 'Kidney Function' ? 'selected' : ''; ?>>Kidney Function</option>
-                <option value="Comprehensive Panel" <?php echo $testType === 'Comprehensive Panel' ? 'selected' : ''; ?>>Comprehensive Panel</option>
+                <option value="Post-meal Glucose" <?php echo $testType === 'Post-meal Glucose' ? 'selected' : ''; ?>>Post-meal Glucose</option>
+                <option value="Creatinine" <?php echo $testType === 'Creatinine' ? 'selected' : ''; ?>>Creatinine</option>
+                <option value="eGFR" <?php echo $testType === 'eGFR' ? 'selected' : ''; ?>>eGFR</option>
+                <option value="Total Cholesterol" <?php echo $testType === 'Total Cholesterol' ? 'selected' : ''; ?>>Total Cholesterol</option>
+                <option value="LDL Cholesterol" <?php echo $testType === 'LDL Cholesterol' ? 'selected' : ''; ?>>LDL Cholesterol</option>
+                <option value="HDL Cholesterol" <?php echo $testType === 'HDL Cholesterol' ? 'selected' : ''; ?>>HDL Cholesterol</option>
+                <option value="Triglycerides" <?php echo $testType === 'Triglycerides' ? 'selected' : ''; ?>>Triglycerides</option>
             </select>
         </div>
         <button type="submit" class="btn btn-secondary">Search</button>
@@ -129,57 +133,63 @@ include BASE_PATH . '/includes/layout/header.php';
                 <tr>
                     <th>Patient</th>
                     <th>Test Date</th>
-                    <th>Test Type</th>
-                    <th>HbA1c</th>
-                    <th>Fasting Glucose</th>
+                    <th>Test Name</th>
+                    <th>Result</th>
                     <th>Status</th>
                     <th class="text-right">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ($labResults as $lab): ?>
+                <?php
+                    $labId = safeInt($lab, 'id');
+                    $labPatientId = safeInt($lab, 'patient_id');
+                    $patientName = safeStr($lab, 'patient_name', 'Unknown');
+                    $testDate = safeStr($lab, 'test_date', '');
+                    $testName = safeStr($lab, 'test_name', 'Unknown');
+                    $resultValue = safeStr($lab, 'result_value', '');
+                    $unit = safeStr($lab, 'unit', '');
+                    $labStatus = safeStr($lab, 'status', 'Normal');
+                ?>
                 <tr>
                     <td>
-                        <a href="<?php echo baseUrl('/patients/view?id=' . $lab['patient_id']); ?>" 
+                        <a href="<?php echo baseUrl('/patients/' . $labPatientId); ?>" 
                            class="text-link font-medium">
-                            <?php echo e(($lab['patient_first_name'] ?? '') . ' ' . ($lab['patient_last_name'] ?? '')); ?>
+                            <?php echo e($patientName); ?>
                         </a>
                     </td>
                     <td class="text-sm" style="color: var(--text-secondary);">
-                        <?php echo formatDate($lab['test_date'], 'M j, Y'); ?>
+                        <?php echo formatDate($testDate, 'M j, Y'); ?>
                     </td>
                     <td class="text-sm" style="color: var(--text-secondary);">
-                        <?php echo e($lab['test_type'] ?? 'General'); ?>
+                        <?php echo e($testName); ?>
                     </td>
                     <td>
-                        <?php if ($lab['hba1c'] !== null): ?>
-                        <span class="<?php echo e(getHbA1cColorClass($lab['hba1c'])); ?> font-semibold">
-                            <?php echo e($lab['hba1c']); ?>%
+                        <?php if ($resultValue !== ''): ?>
+                        <span class="font-semibold">
+                            <?php echo e($resultValue); ?><?php echo $unit ? ' ' . e($unit) : ''; ?>
                         </span>
                         <?php else: ?>
                         <span style="color: var(--text-muted);">N/A</span>
                         <?php endif; ?>
                     </td>
-                    <td class="text-sm" style="color: var(--text-secondary);">
-                        <?php echo $lab['fasting_glucose'] !== null ? e($lab['fasting_glucose']) . ' mg/dL' : 'N/A'; ?>
-                    </td>
                     <td>
-                        <span class="badge <?php echo e(getStatusBadgeClass($lab['status'] ?? 'Normal')); ?>">
-                            <?php echo e($lab['status'] ?? 'Normal'); ?>
+                        <span class="badge <?php echo e(getStatusBadgeClass($labStatus)); ?>">
+                            <?php echo e($labStatus); ?>
                         </span>
                     </td>
                     <td>
                         <div class="table-actions">
-                            <a href="<?php echo baseUrl('/lab-results/view?id=' . $lab['id']); ?>" 
+                            <a href="<?php echo baseUrl('/lab-results/' . $labId); ?>" 
                                class="table-action-btn" title="View">
                                 <i data-lucide="eye"></i>
                             </a>
-                            <a href="<?php echo baseUrl('/lab-results/edit?id=' . $lab['id']); ?>" 
+                            <a href="<?php echo baseUrl('/lab-results/' . $labId . '/edit'); ?>" 
                                class="table-action-btn" title="Edit">
                                 <i data-lucide="edit-2"></i>
                             </a>
                             <button type="button" class="table-action-btn danger" title="Delete"
-                                    onclick="confirmDelete(<?php echo $lab['id']; ?>)">
+                                    onclick="confirmDelete(<?php echo $labId; ?>)">
                                 <i data-lucide="trash-2"></i>
                             </button>
                         </div>

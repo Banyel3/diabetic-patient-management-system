@@ -13,6 +13,7 @@ namespace DiabetaCare\Controllers;
 use DiabetaCare\Core\Request;
 use DiabetaCare\Core\Response;
 use DiabetaCare\Core\Database;
+use DiabetaCare\Core\SqlHelper;
 use DiabetaCare\Services\Validator;
 
 class PatientsController
@@ -88,7 +89,8 @@ class PatientsController
             $params
         );
 
-        // Get paginated results
+        // Get paginated results (SQL Server compatible)
+        $paginationClause = SqlHelper::paginate($pagination['page_size'], $pagination['offset']);
         $patients = Database::query(
             "SELECT id, patient_code, first_name, last_name, date_of_birth, gender,
                     phone, email, address, diabetes_type, diagnosis_date,
@@ -97,8 +99,8 @@ class PatientsController
              FROM patients 
              WHERE {$whereClause}
              ORDER BY {$sortField} {$sortOrder}
-             LIMIT ? OFFSET ?",
-            array_merge($params, [$pagination['page_size'], $pagination['offset']])
+             {$paginationClause}",
+            $params
         );
 
         // Transform data for frontend
@@ -178,9 +180,11 @@ class PatientsController
             );
         }
 
-        // Generate unique patient code for this clinic
+        // Generate unique patient code for this clinic (SQL Server compatible)
+        $topClause = SqlHelper::selectTop('patient_code', 1);
+        $limitClause = SqlHelper::limit1AtEnd();
         $lastCode = Database::queryValue(
-            'SELECT patient_code FROM patients WHERE clinic_id = ? ORDER BY id DESC LIMIT 1',
+            "{$topClause} FROM patients WHERE clinic_id = ? ORDER BY id DESC {$limitClause}",
             [$clinicId]
         );
 
@@ -282,13 +286,14 @@ class PatientsController
         }
 
         try {
+            $nowFunc = SqlHelper::now();
             Database::execute(
-                'UPDATE patients SET 
+                "UPDATE patients SET 
                     first_name = ?, last_name = ?, date_of_birth = ?, gender = ?,
                     phone = ?, email = ?, address = ?, diabetes_type = ?, diagnosis_date = ?,
                     family_history_diabetes = ?, family_history_notes = ?,
-                    last_hba1c = ?, status = ?, notes = ?, updated_at = NOW()
-                 WHERE id = ? AND clinic_id = ?',
+                    last_hba1c = ?, status = ?, notes = ?, updated_at = {$nowFunc}
+                 WHERE id = ? AND clinic_id = ?",
                 [
                     $data['first_name'],
                     $data['last_name'],
@@ -343,8 +348,9 @@ class PatientsController
         }
 
         // Soft delete
+        $nowFunc = SqlHelper::now();
         Database::execute(
-            'UPDATE patients SET deleted_at = NOW() WHERE id = ?',
+            "UPDATE patients SET deleted_at = {$nowFunc} WHERE id = ?",
             [$id]
         );
 
@@ -376,34 +382,48 @@ class PatientsController
             return Response::notFound('Patient not found.');
         }
 
-        // Get appointments (last 20)
-        $appointments = Database::query(
-            'SELECT id, scheduled_at, type, duration_minutes, status, notes
-             FROM appointments
-             WHERE patient_id = ? AND deleted_at IS NULL
-             ORDER BY scheduled_at DESC
-             LIMIT 20',
-            [$id]
-        );
+        // Get appointments (last 20) - SQL Server compatible
+        $appointmentsQuery = Database::isSqlServer()
+            ? 'SELECT TOP 20 id, scheduled_at, type, duration_minutes, status, notes
+               FROM appointments
+               WHERE patient_id = ? AND deleted_at IS NULL
+               ORDER BY scheduled_at DESC'
+            : 'SELECT id, scheduled_at, type, duration_minutes, status, notes
+               FROM appointments
+               WHERE patient_id = ? AND deleted_at IS NULL
+               ORDER BY scheduled_at DESC
+               LIMIT 20';
+        $appointments = Database::query($appointmentsQuery, [$id]);
 
-        // Get medications
-        $medications = Database::query(
-            'SELECT id, name, dosage, frequency, route, start_date, end_date, status, notes
-             FROM medications
-             WHERE patient_id = ? AND deleted_at IS NULL
-             ORDER BY FIELD(status, "active", "on_hold", "completed", "discontinued"), start_date DESC',
-            [$id]
-        );
+        // Get medications - SQL Server compatible
+        $medicationsQuery = Database::isSqlServer()
+            ? "SELECT id, name, dosage, frequency, route, start_date, end_date, status, notes
+               FROM medications
+               WHERE patient_id = ? AND deleted_at IS NULL
+               ORDER BY CASE status 
+                   WHEN 'Active' THEN 1 
+                   WHEN 'On-hold' THEN 2 
+                   WHEN 'Completed' THEN 3 
+                   WHEN 'Discontinued' THEN 4 
+                   ELSE 5 END, start_date DESC"
+            : "SELECT id, name, dosage, frequency, route, start_date, end_date, status, notes
+               FROM medications
+               WHERE patient_id = ? AND deleted_at IS NULL
+               ORDER BY FIELD(status, 'active', 'on_hold', 'completed', 'discontinued'), start_date DESC";
+        $medications = Database::query($medicationsQuery, [$id]);
 
-        // Get lab results (last 30)
-        $labResults = Database::query(
-            'SELECT id, test_name, test_date, result_value, unit, reference_range, status, notes
-             FROM lab_results
-             WHERE patient_id = ? AND deleted_at IS NULL
-             ORDER BY test_date DESC
-             LIMIT 30',
-            [$id]
-        );
+        // Get lab results (last 30) - SQL Server compatible
+        $labResultsQuery = Database::isSqlServer()
+            ? 'SELECT TOP 30 id, test_name, test_date, result_value, unit, reference_range, status, notes
+               FROM lab_results
+               WHERE patient_id = ? AND deleted_at IS NULL
+               ORDER BY test_date DESC'
+            : 'SELECT id, test_name, test_date, result_value, unit, reference_range, status, notes
+               FROM lab_results
+               WHERE patient_id = ? AND deleted_at IS NULL
+               ORDER BY test_date DESC
+               LIMIT 30';
+        $labResults = Database::query($labResultsQuery, [$id]);
 
         // Transform appointments
         $transformedAppointments = array_map(function ($apt) {

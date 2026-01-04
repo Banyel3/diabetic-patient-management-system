@@ -23,21 +23,22 @@ if (isPost()) {
         } else {
             $response = api()->login($email, $password);
             
-            if ($response['success']) {
+            if (safeGet($response, 'success', false)) {
                 // Calculate expiration timestamp
-                $expiresAt = is_numeric($response['expires_at']) 
-                    ? (int) $response['expires_at']
-                    : strtotime($response['expires_at']);
+                $expiresAt = safeGet($response, 'expires_at');
+                $expiresAt = is_numeric($expiresAt) 
+                    ? (int) $expiresAt
+                    : strtotime($expiresAt);
                 
                 // Set session
-                setAuth($response['user'], $response['token'], $expiresAt);
+                setAuth(safeGet($response, 'user', []), safeStr($response, 'token', ''), $expiresAt);
                 
                 // Redirect to intended page or dashboard
                 $redirectTo = $_SESSION['redirect_after_login'] ?? '/';
                 unset($_SESSION['redirect_after_login']);
                 redirect($redirectTo);
             } else {
-                $error = $response['error']['message'] ?? 'Invalid email or password. Please try again.';
+                $error = safeGet($response, 'error.message', safeStr($response, 'message', 'Invalid email or password. Please try again.'));
             }
         }
     }

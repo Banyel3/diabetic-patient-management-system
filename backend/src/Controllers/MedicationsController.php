@@ -12,6 +12,7 @@ namespace DiabetaCare\Controllers;
 use DiabetaCare\Core\Request;
 use DiabetaCare\Core\Response;
 use DiabetaCare\Core\Database;
+use DiabetaCare\Core\SqlHelper;
 use DiabetaCare\Services\Validator;
 
 class MedicationsController
@@ -76,6 +77,7 @@ class MedicationsController
         );
 
         // Get paginated results with patient info
+        $paginationClause = SqlHelper::paginate($pagination['page_size'], $pagination['offset']);
         $medications = Database::query(
             "SELECT m.id, m.patient_id, m.name, m.dosage, 
                     m.frequency, m.start_date, m.end_date,
@@ -86,8 +88,8 @@ class MedicationsController
              JOIN patients p ON p.id = m.patient_id
              WHERE {$whereClause}
              ORDER BY m.created_at DESC
-             LIMIT ? OFFSET ?",
-            array_merge($params, [$pagination['page_size'], $pagination['offset']])
+             {$paginationClause}",
+            $params
         );
 
         $items = array_map([$this, 'transformMedication'], $medications);
@@ -207,6 +209,7 @@ class MedicationsController
 
     /**
      * PUT /api/medications/{id}
+     * Supports partial updates - only validates and updates provided fields
      */
     public function update(Request $request): Response
     {
@@ -215,7 +218,7 @@ class MedicationsController
         $data = $request->all();
 
         $existing = Database::queryOne(
-            'SELECT id FROM medications WHERE id = ? AND clinic_id = ?',
+            'SELECT * FROM medications WHERE id = ? AND clinic_id = ?',
             [$id, $clinicId]
         );
 
@@ -223,7 +226,22 @@ class MedicationsController
             return Response::notFound('Medication not found.');
         }
 
-        $validator = new Validator($data);
+        // Merge existing data with provided updates for partial update support
+        $mergedData = array_merge([
+            'patient_id' => $existing['patient_id'],
+            'name' => $existing['name'],
+            'generic_name' => $existing['generic_name'],
+            'dosage' => $existing['dosage'],
+            'frequency' => $existing['frequency'],
+            'route' => $existing['route'],
+            'start_date' => $existing['start_date'],
+            'end_date' => $existing['end_date'],
+            'prescribing_doctor' => $existing['prescribing_doctor'],
+            'status' => $existing['status'],
+            'notes' => $existing['notes'],
+        ], $data);
+
+        $validator = new Validator($mergedData);
         $validator
             ->required('patient_id')
             ->integer('patient_id')
@@ -236,7 +254,7 @@ class MedicationsController
             ->inArray('route', ['Oral', 'Subcutaneous', 'Intramuscular', 'Intravenous', 'Topical', 'Inhalation', 'Sublingual'])
             ->date('start_date')
             ->date('end_date')
-            ->inArray('status', ['active', 'discontinued', 'completed']);
+            ->inArray('status', ['Active', 'active', 'Discontinued', 'discontinued', 'Completed', 'completed']);
 
         if ($validator->fails()) {
             return Response::validationError(
@@ -245,25 +263,29 @@ class MedicationsController
             );
         }
 
+        // Normalize status to lowercase
+        $mergedData['status'] = strtolower($mergedData['status']);
+
         try {
+            $nowFunc = SqlHelper::now();
             Database::execute(
-                'UPDATE medications SET 
+                "UPDATE medications SET 
                     patient_id = ?, name = ?, generic_name = ?, dosage = ?,
                     frequency = ?, route = ?, start_date = ?, end_date = ?,
-                    prescribing_doctor = ?, status = ?, notes = ?, updated_at = NOW()
-                 WHERE id = ? AND clinic_id = ?',
+                    prescribing_doctor = ?, status = ?, notes = ?, updated_at = {$nowFunc}
+                 WHERE id = ? AND clinic_id = ?",
                 [
-                    (int) $data['patient_id'],
-                    $data['name'],
-                    $data['generic_name'] ?? null,
-                    $data['dosage'],
-                    $data['frequency'],
-                    $data['route'] ?? 'Oral',
-                    $data['start_date'] ?? date('Y-m-d'),
-                    $data['end_date'] ?? null,
-                    $data['prescribing_doctor'] ?? null,
-                    $data['status'] ?? 'active',
-                    $data['notes'] ?? null,
+                    (int) $mergedData['patient_id'],
+                    $mergedData['name'],
+                    $mergedData['generic_name'] ?? null,
+                    $mergedData['dosage'],
+                    $mergedData['frequency'],
+                    $mergedData['route'] ?? 'Oral',
+                    $mergedData['start_date'] ?? date('Y-m-d'),
+                    $mergedData['end_date'] ?? null,
+                    $mergedData['prescribing_doctor'] ?? null,
+                    $mergedData['status'] ?? 'active',
+                    $mergedData['notes'] ?? null,
                     $id,
                     $clinicId,
                 ]
@@ -304,8 +326,10 @@ class MedicationsController
         }
 
         // Soft delete: mark as discontinued
+        $currentDate = SqlHelper::currentDate();
+        $nowFunc = SqlHelper::now();
         Database::execute(
-            'UPDATE medications SET status = ?, end_date = CURDATE(), updated_at = NOW() WHERE id = ?',
+            "UPDATE medications SET status = ?, end_date = {$currentDate}, updated_at = {$nowFunc} WHERE id = ?",
             ['discontinued', $id]
         );
 
@@ -323,10 +347,13 @@ class MedicationsController
             'patient_code' => $med['patient_code'] ?? null,
             'patient_name' => ($med['patient_first_name'] ?? '') . ' ' . ($med['patient_last_name'] ?? ''),
             'name' => $med['name'],
+            'generic_name' => $med['generic_name'] ?? null,
             'dosage' => $med['dosage'],
             'frequency' => $med['frequency'],
+            'route' => $med['route'] ?? 'Oral',
             'start_date' => $med['start_date'],
             'end_date' => $med['end_date'],
+            'prescribing_doctor' => $med['prescribing_doctor'] ?? null,
             'status' => $med['status'],
             'notes' => $med['notes'],
             'created_at' => $med['created_at'],

@@ -13,6 +13,7 @@ namespace DiabetaCare\Controllers;
 use DiabetaCare\Core\Request;
 use DiabetaCare\Core\Response;
 use DiabetaCare\Core\Database;
+use DiabetaCare\Core\SqlHelper;
 use DiabetaCare\Services\JwtService;
 use DiabetaCare\Services\Validator;
 
@@ -134,9 +135,10 @@ class AuthController
                 }
 
                 // Create admin user
+                $nowFunc = SqlHelper::now();
                 Database::execute(
-                    'INSERT INTO users (clinic_id, first_name, last_name, email, phone, password_hash, role, terms_accepted_at) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?, NOW())',
+                    "INSERT INTO users (clinic_id, first_name, last_name, email, phone, password_hash, role, terms_accepted_at) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?, {$nowFunc})",
                     [
                         $clinicId,
                         $data['first_name'],
@@ -238,8 +240,9 @@ class AuthController
         }
 
         // Update last login timestamp
+        $nowFunc = SqlHelper::now();
         Database::execute(
-            'UPDATE users SET last_login_at = NOW() WHERE id = ?',
+            "UPDATE users SET last_login_at = {$nowFunc} WHERE id = ?",
             [$user['id']]
         );
 
@@ -404,9 +407,10 @@ class AuthController
         $hashedToken = hash('sha256', $token);
 
         // Find valid reset token
+        $nowFunc = SqlHelper::now();
         $tokenRecord = Database::queryOne(
-            'SELECT id, user_id FROM auth_tokens 
-             WHERE token = ? AND type = ? AND expires_at > NOW() AND used_at IS NULL',
+            "SELECT id, user_id FROM auth_tokens 
+             WHERE token = ? AND type = ? AND expires_at > {$nowFunc} AND used_at IS NULL",
             [$hashedToken, 'password_reset']
         );
 
@@ -416,14 +420,15 @@ class AuthController
 
         // Update password
         $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
+        $nowFunc = SqlHelper::now();
         Database::execute(
-            'UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?',
+            "UPDATE users SET password_hash = ?, updated_at = {$nowFunc} WHERE id = ?",
             [$passwordHash, $tokenRecord['user_id']]
         );
 
         // Mark token as used
         Database::execute(
-            'UPDATE auth_tokens SET used_at = NOW() WHERE id = ?',
+            "UPDATE auth_tokens SET used_at = {$nowFunc} WHERE id = ?",
             [$tokenRecord['id']]
         );
 

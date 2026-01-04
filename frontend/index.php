@@ -24,6 +24,11 @@ $basePath = '/diabetic-patient-management-system/frontend';
 $path = str_replace($basePath, '', parse_url($requestUri, PHP_URL_PATH));
 $path = $path === '' ? '/' : $path;
 
+// Remove trailing slash if present (except for root)
+if ($path !== '/' && str_ends_with($path, '/')) {
+    $path = rtrim($path, '/');
+}
+
 // Route mapping
 $routes = [
     // Public routes
@@ -38,12 +43,20 @@ $routes = [
     '/dashboard' => 'pages/dashboard.php',
     '/patients' => 'pages/patients/index.php',
     '/patients/create' => 'pages/patients/create.php',
+    '/patients/view' => 'pages/patients/view.php',
+    '/patients/edit' => 'pages/patients/edit.php',
     '/appointments' => 'pages/appointments/index.php',
     '/appointments/create' => 'pages/appointments/create.php',
+    '/appointments/view' => 'pages/appointments/view.php',
+    '/appointments/edit' => 'pages/appointments/edit.php',
     '/medications' => 'pages/medications/index.php',
     '/medications/create' => 'pages/medications/create.php',
+    '/medications/view' => 'pages/medications/view.php',
+    '/medications/edit' => 'pages/medications/edit.php',
     '/lab-results' => 'pages/lab-results/index.php',
     '/lab-results/create' => 'pages/lab-results/create.php',
+    '/lab-results/view' => 'pages/lab-results/view.php',
+    '/lab-results/edit' => 'pages/lab-results/edit.php',
     '/settings' => 'pages/settings.php',
     '/quick-start' => 'pages/quick-start.php',
 ];

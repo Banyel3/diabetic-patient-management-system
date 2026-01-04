@@ -21,7 +21,7 @@ if (isPost()) {
         } else {
             $response = api()->forgotPassword($email);
             
-            if ($response['success']) {
+            if (safeGet($response, 'success', false)) {
                 $success = 'If an account exists with that email, you will receive a password reset link shortly.';
             } else {
                 // Don't reveal if email exists

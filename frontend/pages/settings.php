@@ -5,8 +5,12 @@
 
 $pageTitle = 'Settings';
 
-// Get current user
-$user = getCurrentUser();
+// Get current user with safe access
+$user = getCurrentUser() ?? [];
+$userName = safeStr($user, 'name', '');
+$userEmail = safeStr($user, 'email', '');
+$userRole = safeStr($user, 'role', 'User');
+$userCreatedAt = safeStr($user, 'created_at', '');
 
 $errors = [];
 $successMessage = getFlash('success');
@@ -31,14 +35,15 @@ if (isPost() && post('action') === 'update_profile') {
         
         if (empty($errors)) {
             $response = api()->updateProfile($profileData);
-            if ($response['success']) {
+            if (safeGet($response, 'success', false)) {
                 // Update session
                 $_SESSION['user']['name'] = $profileData['name'];
                 $_SESSION['user']['email'] = $profileData['email'];
                 setFlash('success', 'Profile updated successfully.');
                 redirect('/settings');
             } else {
-                $errors[] = $response['error']['message'] ?? 'Failed to update profile.';
+                $errorMsg = safeGet($response, 'error.message', safeStr($response, 'message', 'Failed to update profile.'));
+                $errors[] = $errorMsg;
             }
         }
     }
@@ -68,11 +73,12 @@ if (isPost() && post('action') === 'change_password') {
                 'current_password' => $currentPassword,
                 'new_password' => $newPassword,
             ]);
-            if ($response['success']) {
+            if (safeGet($response, 'success', false)) {
                 setFlash('success', 'Password changed successfully.');
                 redirect('/settings');
             } else {
-                $errors[] = $response['error']['message'] ?? 'Failed to change password.';
+                $errorMsg = safeGet($response, 'error.message', safeStr($response, 'message', 'Failed to change password.'));
+                $errors[] = $errorMsg;
             }
         }
     }
@@ -128,22 +134,22 @@ include BASE_PATH . '/includes/layout/header.php';
                     <div class="form-group">
                         <label class="form-label required">Name</label>
                         <input type="text" name="name" class="form-input" 
-                               value="<?php echo e($user['name'] ?? ''); ?>" required>
+                               value="<?php echo e($userName); ?>" required>
                     </div>
                     <div class="form-group">
                         <label class="form-label required">Email</label>
                         <input type="email" name="email" class="form-input" 
-                               value="<?php echo e($user['email'] ?? ''); ?>" required>
+                               value="<?php echo e($userEmail); ?>" required>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Role</label>
                         <input type="text" class="form-input" 
-                               value="<?php echo e(ucfirst($user['role'] ?? 'User')); ?>" disabled>
+                               value="<?php echo e(ucfirst($userRole)); ?>" disabled>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Member Since</label>
                         <input type="text" class="form-input" 
-                               value="<?php echo formatDate($user['created_at'] ?? '', 'M j, Y'); ?>" disabled>
+                               value="<?php echo formatDate($userCreatedAt, 'M j, Y'); ?>" disabled>
                     </div>
                 </div>
                 

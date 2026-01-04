@@ -13,6 +13,7 @@ namespace DiabetaCare\Controllers;
 use DiabetaCare\Core\Request;
 use DiabetaCare\Core\Response;
 use DiabetaCare\Core\Database;
+use DiabetaCare\Core\SqlHelper;
 use DiabetaCare\Services\Validator;
 
 class LabResultsController
@@ -105,6 +106,7 @@ class LabResultsController
         );
 
         // Get paginated results with patient info
+        $paginationClause = SqlHelper::paginate($pagination['page_size'], $pagination['offset']);
         $labResults = Database::query(
             "SELECT l.id, l.patient_id, l.test_name, l.test_date, l.result_value,
                     l.unit, l.reference_range, l.status, l.notes, l.created_at,
@@ -114,8 +116,8 @@ class LabResultsController
              JOIN patients p ON p.id = l.patient_id
              WHERE {$whereClause}
              ORDER BY l.test_date DESC, l.created_at DESC
-             LIMIT ? OFFSET ?",
-            array_merge($params, [$pagination['page_size'], $pagination['offset']])
+             {$paginationClause}",
+            $params
         );
 
         $items = array_map([$this, 'transformLabResult'], $labResults);
@@ -321,11 +323,12 @@ class LabResultsController
         $status = $data['status'] ?? $this->determineStatus($testName, (string) $data['result_value']);
 
         try {
+            $nowFunc = SqlHelper::now();
             Database::execute(
-                'UPDATE lab_results SET 
+                "UPDATE lab_results SET 
                     patient_id = ?, test_name = ?, test_date = ?, result_value = ?,
-                    unit = ?, reference_range = ?, status = ?, notes = ?, updated_at = NOW()
-                 WHERE id = ? AND clinic_id = ?',
+                    unit = ?, reference_range = ?, status = ?, notes = ?, updated_at = {$nowFunc}
+                 WHERE id = ? AND clinic_id = ?",
                 [
                     (int) $data['patient_id'],
                     $testName,
@@ -435,13 +438,16 @@ class LabResultsController
      */
     private function updatePatientHbA1c(int $patientId): void
     {
-        $latestHba1c = Database::queryValue(
-            "SELECT result_value FROM lab_results 
-             WHERE patient_id = ? AND test_name = 'HbA1c' 
-             ORDER BY test_date DESC, created_at DESC 
-             LIMIT 1",
-            [$patientId]
-        );
+        $query = Database::isSqlServer()
+            ? "SELECT TOP 1 result_value FROM lab_results 
+               WHERE patient_id = ? AND test_name = 'HbA1c' 
+               ORDER BY test_date DESC, created_at DESC"
+            : "SELECT result_value FROM lab_results 
+               WHERE patient_id = ? AND test_name = 'HbA1c' 
+               ORDER BY test_date DESC, created_at DESC 
+               LIMIT 1";
+        
+        $latestHba1c = Database::queryValue($query, [$patientId]);
 
         Database::execute(
             'UPDATE patients SET last_hba1c = ? WHERE id = ?',

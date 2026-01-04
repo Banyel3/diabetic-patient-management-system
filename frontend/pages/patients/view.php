@@ -11,13 +11,15 @@ if (!$patientId) {
 
 // Fetch patient data
 $response = api()->getPatient($patientId);
-if (!$response['success']) {
-    setFlash('error', $response['error']['message'] ?? 'Patient not found.');
+if (!safeGet($response, 'success', false)) {
+    setFlash('error', safeGet($response, 'error.message', 'Patient not found.'));
     redirect('/patients');
 }
 
 $patient = $response;
-$pageTitle = $patient['first_name'] . ' ' . $patient['last_name'];
+$firstName = safeStr($patient, 'first_name', '');
+$lastName = safeStr($patient, 'last_name', '');
+$pageTitle = trim("$firstName $lastName") ?: 'Patient Details';
 
 // Get active tab
 $activeTab = get('tab', 'overview');
@@ -33,19 +35,20 @@ $appointments = [];
 
 if ($activeTab === 'lab-results') {
     $labResponse = api()->getLabResults(['patient_id' => $patientId, 'page_size' => 20]);
-    $labResults = $labResponse['success'] ? ($labResponse['items'] ?? []) : [];
+    $labResults = safeGet($labResponse, 'success') ? safeGet($labResponse, 'items', []) : [];
 }
 if ($activeTab === 'medications') {
     $medResponse = api()->getMedications(['patient_id' => $patientId, 'page_size' => 20]);
-    $medications = $medResponse['success'] ? ($medResponse['items'] ?? []) : [];
+    $medications = safeGet($medResponse, 'success') ? safeGet($medResponse, 'items', []) : [];
 }
 if ($activeTab === 'appointments') {
     $apptResponse = api()->getAppointments(['patient_id' => $patientId, 'page_size' => 20]);
-    $appointments = $apptResponse['success'] ? ($apptResponse['items'] ?? []) : [];
+    $appointments = safeGet($apptResponse, 'success') ? safeGet($apptResponse, 'items', []) : [];
 }
 
-// Calculate age
-$age = isset($patient['date_of_birth']) ? (new DateTime())->diff(new DateTime($patient['date_of_birth']))->y : 'N/A';
+// Calculate age safely
+$dob = safeStr($patient, 'date_of_birth', '');
+$age = $dob ? (new DateTime())->diff(new DateTime($dob))->y : 'N/A';
 
 $successMessage = getFlash('success');
 $errorMessage = getFlash('error');
@@ -76,28 +79,33 @@ include BASE_PATH . '/includes/layout/header.php';
             </a>
             <div class="flex items-center gap-4">
                 <div class="avatar avatar-xl">
-                    <?php echo e(getInitials($patient['first_name'], $patient['last_name'])); ?>
+                    <?php echo e(getInitials($firstName, $lastName)); ?>
                 </div>
                 <div>
-                    <h1 class="page-title mb-0"><?php echo e($patient['first_name'] . ' ' . $patient['last_name']); ?></h1>
+                    <?php 
+                        $patientCode = safeStr($patient, 'patient_code', '');
+                        $diabetesType = safeStr($patient, 'diabetes_type', 'Unknown');
+                        $status = safeStr($patient, 'status', 'Active');
+                    ?>
+                    <h1 class="page-title mb-0"><?php echo e($firstName . ' ' . $lastName); ?></h1>
                     <div class="flex items-center gap-3 mt-1">
-                        <span class="text-sm" style="color: var(--text-muted);"><?php echo e($patient['patient_code']); ?></span>
-                        <span class="badge <?php echo e(getDiabetesTypeBadgeClass($patient['diabetes_type'])); ?>">
-                            <?php echo e($patient['diabetes_type']); ?>
+                        <span class="text-sm" style="color: var(--text-muted);"><?php echo e($patientCode); ?></span>
+                        <span class="badge <?php echo e(getDiabetesTypeBadgeClass($diabetesType)); ?>">
+                            <?php echo e($diabetesType); ?>
                         </span>
-                        <span class="badge <?php echo e(getStatusBadgeClass($patient['status'])); ?>">
-                            <?php echo e($patient['status']); ?>
+                        <span class="badge <?php echo e(getStatusBadgeClass($status)); ?>">
+                            <?php echo e($status); ?>
                         </span>
                     </div>
                 </div>
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <a href="<?php echo baseUrl('/patients/edit?id=' . $patient['id']); ?>" class="btn btn-outline">
+            <a href="<?php echo baseUrl('/patients/' . safeInt($patient, 'id') . '/edit'); ?>" class="btn btn-outline">
                 <i data-lucide="edit-2"></i>
                 Edit
             </a>
-            <a href="<?php echo baseUrl('/lab-results/create?patient_id=' . $patient['id']); ?>" class="btn btn-primary">
+            <a href="<?php echo baseUrl('/lab-results/create?patient_id=' . safeInt($patient, 'id')); ?>" class="btn btn-primary">
                 <i data-lucide="plus"></i>
                 Add Lab Result
             </a>
@@ -126,6 +134,23 @@ include BASE_PATH . '/includes/layout/header.php';
     
     <!-- Tab Content -->
     <?php if ($activeTab === 'overview'): ?>
+    <?php
+        // Extract all patient fields safely
+        $gender = safeStr($patient, 'gender', 'N/A');
+        $phone = safeStr($patient, 'phone', 'N/A');
+        $email = safeStr($patient, 'email', 'N/A');
+        $address = safeStr($patient, 'address', 'N/A');
+        $diagnosisDate = safeStr($patient, 'diagnosis_date', '');
+        $lastHba1c = safeFloat($patient, 'last_hba1c');
+        $targetHba1c = safeFloat($patient, 'target_hba1c');
+        $bloodPressure = safeStr($patient, 'blood_pressure', 'N/A');
+        $bmi = safeFloat($patient, 'bmi');
+        $emergencyName = safeStr($patient, 'emergency_contact_name', 'N/A');
+        $emergencyRelation = safeStr($patient, 'emergency_contact_relation', 'N/A');
+        $emergencyPhone = safeStr($patient, 'emergency_contact_phone', 'N/A');
+        $medicalHistory = safeStr($patient, 'medical_history', 'No medical history recorded.');
+        $notes = safeStr($patient, 'notes', 'No notes recorded.');
+    ?>
     <div class="grid grid-3">
         <!-- Personal Information Card -->
         <div class="card">
@@ -136,11 +161,11 @@ include BASE_PATH . '/includes/layout/header.php';
                 <div class="info-grid">
                     <div class="info-item">
                         <label>Full Name</label>
-                        <p><?php echo e($patient['first_name'] . ' ' . $patient['last_name']); ?></p>
+                        <p><?php echo e($firstName . ' ' . $lastName); ?></p>
                     </div>
                     <div class="info-item">
                         <label>Date of Birth</label>
-                        <p><?php echo formatDate($patient['date_of_birth'] ?? '', 'M j, Y'); ?></p>
+                        <p><?php echo formatDate($dob, 'M j, Y'); ?></p>
                     </div>
                     <div class="info-item">
                         <label>Age</label>
@@ -148,19 +173,19 @@ include BASE_PATH . '/includes/layout/header.php';
                     </div>
                     <div class="info-item">
                         <label>Gender</label>
-                        <p><?php echo e($patient['gender'] ?? 'N/A'); ?></p>
+                        <p><?php echo e($gender); ?></p>
                     </div>
                     <div class="info-item">
                         <label>Phone</label>
-                        <p><?php echo e($patient['phone'] ?? 'N/A'); ?></p>
+                        <p><?php echo e($phone); ?></p>
                     </div>
                     <div class="info-item">
                         <label>Email</label>
-                        <p><?php echo e($patient['email'] ?? 'N/A'); ?></p>
+                        <p><?php echo e($email); ?></p>
                     </div>
                     <div class="info-item full-width">
                         <label>Address</label>
-                        <p><?php echo e($patient['address'] ?? 'N/A'); ?></p>
+                        <p><?php echo e($address); ?></p>
                     </div>
                 </div>
             </div>
@@ -175,31 +200,31 @@ include BASE_PATH . '/includes/layout/header.php';
                 <div class="info-grid">
                     <div class="info-item">
                         <label>Diabetes Type</label>
-                        <span class="badge <?php echo e(getDiabetesTypeBadgeClass($patient['diabetes_type'])); ?>">
-                            <?php echo e($patient['diabetes_type']); ?>
+                        <span class="badge <?php echo e(getDiabetesTypeBadgeClass($diabetesType)); ?>">
+                            <?php echo e($diabetesType); ?>
                         </span>
                     </div>
                     <div class="info-item">
                         <label>Diagnosis Date</label>
-                        <p><?php echo formatDate($patient['diagnosis_date'] ?? '', 'M j, Y'); ?></p>
+                        <p><?php echo formatDate($diagnosisDate, 'M j, Y'); ?></p>
                     </div>
                     <div class="info-item">
                         <label>Last HbA1c</label>
-                        <p class="<?php echo e(getHbA1cColorClass($patient['last_hba1c'])); ?> font-semibold">
-                            <?php echo $patient['last_hba1c'] !== null ? e($patient['last_hba1c']) . '%' : 'N/A'; ?>
+                        <p class="<?php echo e(getHbA1cColorClass($lastHba1c)); ?> font-semibold">
+                            <?php echo $lastHba1c !== null ? e($lastHba1c) . '%' : 'N/A'; ?>
                         </p>
                     </div>
                     <div class="info-item">
                         <label>Target HbA1c</label>
-                        <p><?php echo isset($patient['target_hba1c']) ? e($patient['target_hba1c']) . '%' : '< 7%'; ?></p>
+                        <p><?php echo $targetHba1c !== null ? e($targetHba1c) . '%' : '< 7%'; ?></p>
                     </div>
                     <div class="info-item">
                         <label>Blood Pressure</label>
-                        <p><?php echo e($patient['blood_pressure'] ?? 'N/A'); ?></p>
+                        <p><?php echo e($bloodPressure); ?></p>
                     </div>
                     <div class="info-item">
                         <label>BMI</label>
-                        <p><?php echo isset($patient['bmi']) ? e($patient['bmi']) . ' kg/m²' : 'N/A'; ?></p>
+                        <p><?php echo $bmi !== null ? e($bmi) . ' kg/m²' : 'N/A'; ?></p>
                     </div>
                 </div>
             </div>
@@ -214,15 +239,15 @@ include BASE_PATH . '/includes/layout/header.php';
                 <div class="info-grid">
                     <div class="info-item">
                         <label>Contact Name</label>
-                        <p><?php echo e($patient['emergency_contact_name'] ?? 'N/A'); ?></p>
+                        <p><?php echo e($emergencyName); ?></p>
                     </div>
                     <div class="info-item">
                         <label>Relationship</label>
-                        <p><?php echo e($patient['emergency_contact_relation'] ?? 'N/A'); ?></p>
+                        <p><?php echo e($emergencyRelation); ?></p>
                     </div>
                     <div class="info-item">
                         <label>Phone</label>
-                        <p><?php echo e($patient['emergency_contact_phone'] ?? 'N/A'); ?></p>
+                        <p><?php echo e($emergencyPhone); ?></p>
                     </div>
                 </div>
             </div>
@@ -236,7 +261,7 @@ include BASE_PATH . '/includes/layout/header.php';
                 <h3 class="card-title">Medical History</h3>
             </div>
             <div class="card-body">
-                <p style="white-space: pre-line;"><?php echo e($patient['medical_history'] ?? 'No medical history recorded.'); ?></p>
+                <p style="white-space: pre-line;"><?php echo e($medicalHistory); ?></p>
             </div>
         </div>
         
@@ -245,7 +270,7 @@ include BASE_PATH . '/includes/layout/header.php';
                 <h3 class="card-title">Notes</h3>
             </div>
             <div class="card-body">
-                <p style="white-space: pre-line;"><?php echo e($patient['notes'] ?? 'No notes recorded.'); ?></p>
+                <p style="white-space: pre-line;"><?php echo e($notes); ?></p>
             </div>
         </div>
     </div>
@@ -278,23 +303,30 @@ include BASE_PATH . '/includes/layout/header.php';
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($labResults as $lab): ?>
+                    <?php foreach ($labResults as $lab): 
+                        $labId = safeInt($lab, 'id');
+                        $labDate = safeStr($lab, 'test_date', '');
+                        $labType = safeStr($lab, 'test_type', 'General');
+                        $labValue = safeStr($lab, 'value', 'N/A');
+                        $labHba1c = safeFloat($lab, 'hba1c');
+                        $labFasting = safeFloat($lab, 'fasting_glucose');
+                    ?>
                     <tr>
-                        <td><?php echo formatDate($lab['test_date']); ?></td>
-                        <td><?php echo e($lab['test_type'] ?? 'General'); ?></td>
-                        <td><?php echo e($lab['value'] ?? 'N/A'); ?></td>
+                        <td><?php echo formatDate($labDate); ?></td>
+                        <td><?php echo e($labType); ?></td>
+                        <td><?php echo e($labValue); ?></td>
                         <td>
-                            <span class="<?php echo e(getHbA1cColorClass($lab['hba1c'])); ?> font-semibold">
-                                <?php echo $lab['hba1c'] !== null ? e($lab['hba1c']) . '%' : 'N/A'; ?>
+                            <span class="<?php echo e(getHbA1cColorClass($labHba1c)); ?> font-semibold">
+                                <?php echo $labHba1c !== null ? e($labHba1c) . '%' : 'N/A'; ?>
                             </span>
                         </td>
-                        <td><?php echo $lab['fasting_glucose'] !== null ? e($lab['fasting_glucose']) . ' mg/dL' : 'N/A'; ?></td>
+                        <td><?php echo $labFasting !== null ? e($labFasting) . ' mg/dL' : 'N/A'; ?></td>
                         <td>
                             <div class="table-actions">
-                                <a href="<?php echo baseUrl('/lab-results/view?id=' . $lab['id']); ?>" class="table-action-btn" title="View">
+                                <a href="<?php echo baseUrl('/lab-results/view?id=' . $labId); ?>" class="table-action-btn" title="View">
                                     <i data-lucide="eye"></i>
                                 </a>
-                                <a href="<?php echo baseUrl('/lab-results/edit?id=' . $lab['id']); ?>" class="table-action-btn" title="Edit">
+                                <a href="<?php echo baseUrl('/lab-results/edit?id=' . $labId); ?>" class="table-action-btn" title="Edit">
                                     <i data-lucide="edit-2"></i>
                                 </a>
                             </div>
@@ -335,26 +367,33 @@ include BASE_PATH . '/includes/layout/header.php';
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($medications as $med): ?>
+                    <?php foreach ($medications as $med): 
+                        $medId = safeInt($med, 'id');
+                        $medName = safeStr($med, 'name', 'N/A');
+                        $medDosage = safeStr($med, 'dosage', 'N/A');
+                        $medFrequency = safeStr($med, 'frequency', 'N/A');
+                        $medStartDate = safeStr($med, 'start_date', '');
+                        $medStatusVal = safeStr($med, 'status', 'Active');
+                        $medIsActive = strtolower($medStatusVal) === 'active';
+                    ?>
                     <tr>
                         <td>
-                            <p class="font-medium"><?php echo e($med['medication_name']); ?></p>
-                            <p class="text-xs" style="color: var(--text-muted);"><?php echo e($med['category'] ?? ''); ?></p>
+                            <p class="font-medium"><?php echo e($medName); ?></p>
                         </td>
-                        <td><?php echo e($med['dosage']); ?></td>
-                        <td><?php echo e($med['frequency']); ?></td>
-                        <td><?php echo formatDate($med['start_date']); ?></td>
+                        <td><?php echo e($medDosage); ?></td>
+                        <td><?php echo e($medFrequency); ?></td>
+                        <td><?php echo formatDate($medStartDate); ?></td>
                         <td>
-                            <span class="badge <?php echo $med['is_active'] ? 'badge-success' : 'badge-secondary'; ?>">
-                                <?php echo $med['is_active'] ? 'Active' : 'Inactive'; ?>
+                            <span class="badge <?php echo $medIsActive ? 'badge-success' : 'badge-secondary'; ?>">
+                                <?php echo $medIsActive ? 'Active' : 'Inactive'; ?>
                             </span>
                         </td>
                         <td>
                             <div class="table-actions">
-                                <a href="<?php echo baseUrl('/medications/view?id=' . $med['id']); ?>" class="table-action-btn" title="View">
+                                <a href="<?php echo baseUrl('/medications/view?id=' . $medId); ?>" class="table-action-btn" title="View">
                                     <i data-lucide="eye"></i>
                                 </a>
-                                <a href="<?php echo baseUrl('/medications/edit?id=' . $med['id']); ?>" class="table-action-btn" title="Edit">
+                                <a href="<?php echo baseUrl('/medications/edit?id=' . $medId); ?>" class="table-action-btn" title="Edit">
                                     <i data-lucide="edit-2"></i>
                                 </a>
                             </div>
@@ -388,31 +427,38 @@ include BASE_PATH . '/includes/layout/header.php';
                     <tr>
                         <th>Date & Time</th>
                         <th>Type</th>
-                        <th>Provider</th>
+                        <th>Duration</th>
                         <th>Status</th>
                         <th class="text-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($appointments as $appt): ?>
+                    <?php foreach ($appointments as $appt): 
+                        $apptId = safeInt($appt, 'id');
+                        $apptDate = safeStr($appt, 'date', '');
+                        $apptTime = safeStr($appt, 'time', '');
+                        $apptType = safeStr($appt, 'type', 'Check-up');
+                        $apptDuration = safeInt($appt, 'duration_minutes', 30);
+                        $apptStatus = safeStr($appt, 'status', 'scheduled');
+                    ?>
                     <tr>
                         <td>
-                            <p class="font-medium"><?php echo formatDate($appt['appointment_date'], 'M j, Y'); ?></p>
-                            <p class="text-sm" style="color: var(--text-muted);"><?php echo formatDate($appt['appointment_time'], 'g:i A'); ?></p>
+                            <p class="font-medium"><?php echo formatDate($apptDate, 'M j, Y'); ?></p>
+                            <p class="text-sm" style="color: var(--text-muted);"><?php echo formatTime($apptTime); ?></p>
                         </td>
-                        <td><?php echo e($appt['appointment_type'] ?? 'Check-up'); ?></td>
-                        <td><?php echo e($appt['provider_name'] ?? 'N/A'); ?></td>
+                        <td><?php echo e($apptType); ?></td>
+                        <td><?php echo e($apptDuration); ?> min</td>
                         <td>
-                            <span class="badge <?php echo e(getAppointmentStatusBadgeClass($appt['status'])); ?>">
-                                <?php echo e($appt['status']); ?>
+                            <span class="badge <?php echo e(getAppointmentStatusBadgeClass($apptStatus)); ?>">
+                                <?php echo e($apptStatus); ?>
                             </span>
                         </td>
                         <td>
                             <div class="table-actions">
-                                <a href="<?php echo baseUrl('/appointments/view?id=' . $appt['id']); ?>" class="table-action-btn" title="View">
+                                <a href="<?php echo baseUrl('/appointments/view?id=' . $apptId); ?>" class="table-action-btn" title="View">
                                     <i data-lucide="eye"></i>
                                 </a>
-                                <a href="<?php echo baseUrl('/appointments/edit?id=' . $appt['id']); ?>" class="table-action-btn" title="Edit">
+                                <a href="<?php echo baseUrl('/appointments/edit?id=' . $apptId); ?>" class="table-action-btn" title="Edit">
                                     <i data-lucide="edit-2"></i>
                                 </a>
                             </div>

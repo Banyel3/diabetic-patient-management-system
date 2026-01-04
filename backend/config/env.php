@@ -39,15 +39,15 @@ if (file_exists($envFile)) {
     }
 }
 
-// Default values
+// Default values (only applied if not set in .env)
 $defaults = [
     'APP_ENV' => 'development',
     'APP_DEBUG' => 'true',
-    'DB_HOST' => 'localhost',
-    'DB_PORT' => '3306',
-    'DB_NAME' => 'diabetacare',
-    'DB_USER' => 'root',
-    'DB_PASSWORD' => '',
+    'DB_DRIVER' => 'sqlsrv',
+    'DB_HOST' => '.\SQLEXPRESS',
+    'DB_PORT' => '1433',
+    'DB_NAME' => 'DiabetaCare',
+    // DB_USER and DB_PASSWORD intentionally omitted - empty means Windows Auth for SQL Server
     'JWT_SECRET' => 'change-this-secret-in-production',
     'JWT_EXPIRY' => '86400', // 24 hours in seconds
     'FRONTEND_URL' => 'http://localhost:3000',
@@ -55,8 +55,9 @@ $defaults = [
     'PAGINATION_MAX_SIZE' => '100',
 ];
 
+// Only set defaults for keys not already set (including empty string values from .env)
 foreach ($defaults as $key => $value) {
-    if (!getenv($key)) {
+    if (getenv($key) === false) {
         putenv("{$key}={$value}");
         $_ENV[$key] = $value;
     }

@@ -12,6 +12,7 @@ namespace DiabetaCare\Controllers;
 use DiabetaCare\Core\Request;
 use DiabetaCare\Core\Response;
 use DiabetaCare\Core\Database;
+use DiabetaCare\Core\SqlHelper;
 use DiabetaCare\Services\Validator;
 
 class AppointmentsController
@@ -54,7 +55,10 @@ class AppointmentsController
         $params = [$clinicId];
 
         if ($search !== '') {
-            $conditions[] = "(CONCAT(p.first_name, ' ', p.last_name) LIKE ?)";
+            $searchConcat = Database::isSqlServer()
+                ? "(p.first_name + ' ' + p.last_name LIKE ?)"
+                : "(CONCAT(p.first_name, ' ', p.last_name) LIKE ?)";
+            $conditions[] = $searchConcat;
             $params[] = "%{$search}%";
         }
 
@@ -64,12 +68,18 @@ class AppointmentsController
         }
 
         if ($dateFrom) {
-            $conditions[] = 'DATE(a.scheduled_at) >= ?';
+            $dateFromCond = Database::isSqlServer()
+                ? 'CAST(a.scheduled_at AS DATE) >= ?'
+                : 'DATE(a.scheduled_at) >= ?';
+            $conditions[] = $dateFromCond;
             $params[] = $dateFrom;
         }
 
         if ($dateTo) {
-            $conditions[] = 'DATE(a.scheduled_at) <= ?';
+            $dateToCond = Database::isSqlServer()
+                ? 'CAST(a.scheduled_at AS DATE) <= ?'
+                : 'DATE(a.scheduled_at) <= ?';
+            $conditions[] = $dateToCond;
             $params[] = $dateTo;
         }
 
@@ -90,6 +100,7 @@ class AppointmentsController
         );
 
         // Get paginated results with patient info
+        $paginationClause = SqlHelper::paginate($pagination['page_size'], $pagination['offset']);
         $appointments = Database::query(
             "SELECT a.id, a.patient_id, a.scheduled_at, a.duration_minutes, 
                     a.type, a.status, a.notes, a.created_at,
@@ -99,8 +110,8 @@ class AppointmentsController
              JOIN patients p ON p.id = a.patient_id
              WHERE {$whereClause}
              ORDER BY a.scheduled_at DESC
-             LIMIT ? OFFSET ?",
-            array_merge($params, [$pagination['page_size'], $pagination['offset']])
+             {$paginationClause}",
+            $params
         );
 
         $items = array_map([$this, 'transformAppointment'], $appointments);
@@ -216,6 +227,8 @@ class AppointmentsController
 
     /**
      * PUT /api/appointments/{id}
+     * 
+     * Supports partial updates - only provided fields are validated and updated.
      */
     public function update(Request $request): Response
     {
@@ -224,7 +237,7 @@ class AppointmentsController
         $data = $request->all();
 
         $existing = Database::queryOne(
-            'SELECT id, patient_id, status as old_status FROM appointments WHERE id = ? AND clinic_id = ?',
+            'SELECT * FROM appointments WHERE id = ? AND clinic_id = ?',
             [$id, $clinicId]
         );
 
@@ -232,15 +245,21 @@ class AppointmentsController
             return Response::notFound('Appointment not found.');
         }
 
+        // Validate only provided fields
         $validator = new Validator($data);
-        $validator
-            ->required('patient_id')
-            ->integer('patient_id')
-            ->required('scheduled_at')
-            ->datetime('scheduled_at', 'Y-m-d H:i:s')
-            ->required('type')
-            ->inArray('type', ['Check-up', 'Follow-up', 'Lab Review', 'Consultation', 'New Patient'])
-            ->inArray('status', ['Scheduled', 'Completed', 'Cancelled', 'No-show']);
+        
+        if (isset($data['patient_id'])) {
+            $validator->integer('patient_id');
+        }
+        if (isset($data['scheduled_at'])) {
+            $validator->datetime('scheduled_at', 'Y-m-d H:i:s');
+        }
+        if (isset($data['type'])) {
+            $validator->inArray('type', ['Check-up', 'Follow-up', 'Lab Review', 'Consultation', 'New Patient']);
+        }
+        if (isset($data['status'])) {
+            $validator->inArray('status', ['Scheduled', 'Completed', 'Cancelled', 'No-show']);
+        }
 
         if ($validator->fails()) {
             return Response::validationError(
@@ -249,28 +268,36 @@ class AppointmentsController
             );
         }
 
+        // Merge existing data with provided updates
+        $patientId = isset($data['patient_id']) ? (int) $data['patient_id'] : (int) $existing['patient_id'];
+        $scheduledAt = $data['scheduled_at'] ?? $existing['scheduled_at'];
+        $durationMinutes = $data['duration_minutes'] ?? $existing['duration_minutes'] ?? 30;
+        $type = $data['type'] ?? $existing['type'];
+        $status = $data['status'] ?? $existing['status'];
+        $notes = array_key_exists('notes', $data) ? $data['notes'] : $existing['notes'];
+
         try {
+            $nowFunc = SqlHelper::now();
             Database::execute(
-                'UPDATE appointments SET 
+                "UPDATE appointments SET 
                     patient_id = ?, scheduled_at = ?, duration_minutes = ?,
-                    type = ?, status = ?, notes = ?, updated_at = NOW()
-                 WHERE id = ? AND clinic_id = ?',
+                    type = ?, status = ?, notes = ?, updated_at = {$nowFunc}
+                 WHERE id = ? AND clinic_id = ?",
                 [
-                    (int) $data['patient_id'],
-                    $data['scheduled_at'],
-                    $data['duration_minutes'] ?? 30,
-                    $data['type'],
-                    $data['status'] ?? 'Scheduled',
-                    $data['notes'] ?? null,
+                    $patientId,
+                    $scheduledAt,
+                    $durationMinutes,
+                    $type,
+                    $status,
+                    $notes,
                     $id,
                     $clinicId,
                 ]
             );
 
             // Update patient's last visit date if status changed to Completed
-            $newStatus = $data['status'] ?? 'Scheduled';
-            if ($newStatus === 'Completed' && $existing['old_status'] !== 'Completed') {
-                $this->updatePatientLastVisit((int) $data['patient_id']);
+            if ($status === 'Completed' && $existing['status'] !== 'Completed') {
+                $this->updatePatientLastVisit($patientId);
             }
 
             $appointment = Database::queryOne(
@@ -317,8 +344,9 @@ class AppointmentsController
      */
     private function updatePatientLastVisit(int $patientId): void
     {
+        $currentDate = SqlHelper::currentDate();
         Database::execute(
-            'UPDATE patients SET last_visit_date = CURDATE() WHERE id = ?',
+            "UPDATE patients SET last_visit_date = {$currentDate} WHERE id = ?",
             [$patientId]
         );
     }
