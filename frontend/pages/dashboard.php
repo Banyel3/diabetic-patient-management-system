@@ -1,0 +1,281 @@
+<?php
+/**
+ * DiabetaCare - Dashboard Page
+ */
+
+$pageTitle = 'Dashboard';
+
+// Fetch dashboard data
+$summary = api()->getDashboardSummary();
+$upcomingAppointments = api()->getUpcomingAppointments(5);
+$recentPatients = api()->getRecentPatients(5);
+$criticalAlerts = api()->getCriticalAlerts();
+
+// Handle errors gracefully
+$summaryData = $summary['success'] ? $summary : null;
+$appointmentsData = $upcomingAppointments['success'] ? ($upcomingAppointments['appointments'] ?? []) : [];
+$patientsData = $recentPatients['success'] ? ($recentPatients['patients'] ?? []) : [];
+$alertsData = $criticalAlerts['success'] ? $criticalAlerts : null;
+
+// Build stats
+$stats = [];
+if ($summaryData) {
+    $stats = [
+        [
+            'label' => 'Total Patients',
+            'value' => $summaryData['patients']['total'] ?? 0,
+            'change' => ($summaryData['patients']['active'] ?? 0) . ' active',
+            'icon' => 'users',
+            'iconClass' => 'accent',
+        ],
+        [
+            'label' => 'Appointments Today',
+            'value' => $summaryData['appointments']['today']['total'] ?? 0,
+            'change' => ($summaryData['appointments']['today']['scheduled'] ?? 0) . ' scheduled',
+            'icon' => 'calendar',
+            'iconClass' => 'blue',
+        ],
+        [
+            'label' => 'Active Prescriptions',
+            'value' => $summaryData['medications']['active_prescriptions'] ?? 0,
+            'change' => ($summaryData['medications']['patients_on_medications'] ?? 0) . ' patients',
+            'icon' => 'pill',
+            'iconClass' => 'purple',
+        ],
+        [
+            'label' => 'Lab Results (30d)',
+            'value' => $summaryData['lab_results']['last_30_days'] ?? 0,
+            'change' => ($summaryData['hba1c_control']['patients_tracked'] ?? 0) . ' HbA1c tracked',
+            'icon' => 'beaker',
+            'iconClass' => 'amber',
+        ],
+    ];
+}
+
+// Check if quick start banner should be shown
+$showQuickStart = !isset($_COOKIE['diabetacare_quickstart_dismissed']);
+
+include BASE_PATH . '/includes/layout/header.php';
+?>
+
+<div style="max-width: 1400px;">
+    <?php if ($showQuickStart): ?>
+    <!-- Quick Start Banner -->
+    <div class="quick-start-banner" style="position: relative;">
+        <button class="close-btn" onclick="dismissQuickStart()">
+            <i data-lucide="x"></i>
+        </button>
+        <div class="icon">
+            <i data-lucide="sparkles"></i>
+        </div>
+        <div class="content">
+            <h3>Welcome to DiabetaCare! 🎉</h3>
+            <p>New here? Check out our 2-minute quick start guide to get your clinic up and running.</p>
+        </div>
+        <a href="<?php echo baseUrl('/quick-start'); ?>" class="btn btn-primary">
+            View Quick Start Guide
+            <i data-lucide="arrow-right"></i>
+        </a>
+    </div>
+    <?php endif; ?>
+    
+    <!-- Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Dashboard</h1>
+            <p class="page-subtitle">Welcome back, Doctor</p>
+        </div>
+        <a href="<?php echo baseUrl('/patients/create'); ?>" class="btn btn-primary">
+            <i data-lucide="plus"></i>
+            Add Patient
+        </a>
+    </div>
+    
+    <!-- Stats Grid -->
+    <div class="grid grid-4 mb-6">
+        <?php foreach ($stats as $stat): ?>
+        <div class="card stat-card">
+            <div class="flex items-center justify-between mb-3">
+                <div class="stat-icon <?php echo e($stat['iconClass']); ?>">
+                    <i data-lucide="<?php echo e($stat['icon']); ?>"></i>
+                </div>
+                <i data-lucide="trending-up" style="width: 1rem; height: 1rem; color: var(--success);"></i>
+            </div>
+            <p class="stat-value"><?php echo e($stat['value']); ?></p>
+            <p class="stat-label"><?php echo e($stat['label']); ?></p>
+            <p class="stat-change"><?php echo e($stat['change']); ?></p>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    
+    <!-- Main Content Grid -->
+    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
+        <!-- Recent Patients -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Recent Patients</h2>
+                <a href="<?php echo baseUrl('/patients'); ?>" class="flex items-center gap-1" style="font-size: 0.875rem;">
+                    View all <i data-lucide="arrow-right" style="width: 1rem; height: 1rem;"></i>
+                </a>
+            </div>
+            
+            <?php if (empty($patientsData)): ?>
+            <div class="empty-state">
+                <i data-lucide="users"></i>
+                <p>No recent patients</p>
+                <a href="<?php echo baseUrl('/patients/create'); ?>" class="btn btn-primary btn-sm">Add your first patient</a>
+            </div>
+            <?php else: ?>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>HbA1c</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($patientsData as $patient): ?>
+                    <tr style="cursor: pointer;" onclick="window.location='<?php echo baseUrl('/patients/view?id=' . $patient['id']); ?>'">
+                        <td>
+                            <div class="flex items-center gap-3">
+                                <div class="avatar avatar-sm">
+                                    <?php echo e(getInitials($patient['first_name'] ?? '', $patient['last_name'] ?? substr($patient['name'] ?? '', 0, 1))); ?>
+                                </div>
+                                <div>
+                                    <p class="font-medium" style="color: var(--text-primary); font-size: 0.875rem;">
+                                        <?php echo e($patient['name'] ?? $patient['first_name'] . ' ' . $patient['last_name']); ?>
+                                    </p>
+                                    <p class="text-xs" style="color: var(--text-muted);">
+                                        <?php echo e($patient['patient_code'] ?? ''); ?>
+                                    </p>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge <?php echo e(getDiabetesTypeBadgeClass($patient['diabetes_type'] ?? '')); ?>">
+                                <?php echo e($patient['diabetes_type'] ?? 'N/A'); ?>
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge <?php echo e(getStatusBadgeClass($patient['status'] ?? 'Active')); ?>">
+                                <?php echo e($patient['status'] ?? 'Active'); ?>
+                            </span>
+                        </td>
+                        <td>
+                            <span class="<?php echo e(getHbA1cColorClass($patient['last_hba1c'] ?? null)); ?> font-semibold">
+                                <?php echo $patient['last_hba1c'] !== null ? e($patient['last_hba1c']) . '%' : 'N/A'; ?>
+                            </span>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            <?php endif; ?>
+        </div>
+        
+        <!-- Upcoming Appointments -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Today's Appointments</h2>
+                <a href="<?php echo baseUrl('/appointments'); ?>" class="flex items-center gap-1" style="font-size: 0.875rem;">
+                    View all <i data-lucide="arrow-right" style="width: 1rem; height: 1rem;"></i>
+                </a>
+            </div>
+            
+            <?php if (empty($appointmentsData)): ?>
+            <div class="empty-state">
+                <i data-lucide="calendar"></i>
+                <p>No appointments today</p>
+                <a href="<?php echo baseUrl('/appointments/create'); ?>" class="btn btn-primary btn-sm">Schedule appointment</a>
+            </div>
+            <?php else: ?>
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <?php foreach ($appointmentsData as $apt): ?>
+                <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--surface-secondary); border-radius: var(--radius-md);">
+                    <div class="avatar avatar-sm">
+                        <?php 
+                        $nameParts = explode(' ', $apt['patient_name'] ?? '');
+                        echo e(getInitials($nameParts[0] ?? '', $nameParts[1] ?? '')); 
+                        ?>
+                    </div>
+                    <div style="flex: 1; min-width: 0;">
+                        <p class="font-medium text-sm" style="color: var(--text-primary);">
+                            <?php echo e($apt['patient_name'] ?? 'Unknown'); ?>
+                        </p>
+                        <div class="flex items-center gap-2 text-xs" style="color: var(--text-muted);">
+                            <i data-lucide="clock" style="width: 0.75rem; height: 0.75rem;"></i>
+                            <span><?php echo formatTime($apt['time'] ?? ''); ?></span>
+                        </div>
+                    </div>
+                    <span class="badge <?php echo e(getStatusBadgeClass($apt['status'] ?? 'Scheduled')); ?>">
+                        <?php echo e($apt['status'] ?? 'Scheduled'); ?>
+                    </span>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+    
+    <?php if ($alertsData && ($alertsData['total_alerts'] ?? 0) > 0): ?>
+    <!-- Critical Alerts Section -->
+    <div class="card mt-6">
+        <div class="card-header">
+            <h2 class="card-title flex items-center gap-2">
+                <i data-lucide="alert-triangle" style="width: 1.25rem; height: 1.25rem; color: var(--warning);"></i>
+                Critical Alerts
+                <span class="badge badge-warning"><?php echo e($alertsData['total_alerts']); ?></span>
+            </h2>
+        </div>
+        
+        <div class="grid grid-3">
+            <?php if (!empty($alertsData['alerts']['high_hba1c'])): ?>
+            <div>
+                <h4 class="text-sm font-semibold mb-2" style="color: var(--danger);">High HbA1c (&gt;8%)</h4>
+                <?php foreach (array_slice($alertsData['alerts']['high_hba1c'], 0, 3) as $alert): ?>
+                <div class="flex items-center gap-2 mb-2 text-sm">
+                    <span class="font-medium"><?php echo e($alert['patient_name'] ?? ''); ?></span>
+                    <span class="text-danger font-semibold"><?php echo e($alert['hba1c'] ?? ''); ?>%</span>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+            
+            <?php if (!empty($alertsData['alerts']['no_recent_visit'])): ?>
+            <div>
+                <h4 class="text-sm font-semibold mb-2" style="color: var(--warning);">No Recent Visit</h4>
+                <?php foreach (array_slice($alertsData['alerts']['no_recent_visit'], 0, 3) as $alert): ?>
+                <div class="flex items-center gap-2 mb-2 text-sm">
+                    <span class="font-medium"><?php echo e($alert['patient_name'] ?? ''); ?></span>
+                    <span style="color: var(--text-muted);"><?php echo e($alert['days_since_visit'] ?? ''); ?> days</span>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+            
+            <?php if (!empty($alertsData['alerts']['critical_labs'])): ?>
+            <div>
+                <h4 class="text-sm font-semibold mb-2" style="color: var(--danger);">Critical Lab Results</h4>
+                <?php foreach (array_slice($alertsData['alerts']['critical_labs'], 0, 3) as $alert): ?>
+                <div class="flex items-center gap-2 mb-2 text-sm">
+                    <span class="font-medium"><?php echo e($alert['patient_name'] ?? ''); ?></span>
+                    <span style="color: var(--text-muted);"><?php echo e($alert['test_name'] ?? ''); ?></span>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+</div>
+
+<script>
+function dismissQuickStart() {
+    document.cookie = 'diabetacare_quickstart_dismissed=true; path=/; max-age=31536000';
+    document.querySelector('.quick-start-banner').style.display = 'none';
+}
+</script>
+
+<?php include BASE_PATH . '/includes/layout/footer.php'; ?>

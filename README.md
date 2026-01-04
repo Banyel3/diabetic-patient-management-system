@@ -1,23 +1,24 @@
 # DiabetaCare
 
-A comprehensive diabetic patient management system with a modern Next.js frontend and PHP REST API backend.
+A comprehensive diabetic patient management system with a PHP frontend and PHP REST API backend.
 
-## Version 2.0.0
+## Version 2.1.0
 
 This version features:
 
-- ✅ Full-stack architecture with real database persistence
+- ✅ Full-stack PHP architecture with real database persistence
 - ✅ JWT-based authentication
 - ✅ Multi-tenant clinic support
 - ✅ 5 core modules: Dashboard, Patients, Appointments, Medications, Lab Results
 - ✅ Responsive CarePoint-inspired medical UI
+- ✅ Pure PHP frontend (no Node.js required)
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      Frontend (Next.js 16)                   │
-│  React 19 • TypeScript • Tailwind CSS • Lucide Icons        │
+│                      Frontend (PHP 8.1+)                     │
+│  Vanilla PHP • CSS • Lucide Icons • Responsive Design       │
 ├─────────────────────────────────────────────────────────────┤
 │                         API Layer                            │
 │              RESTful JSON over HTTP/HTTPS                    │
@@ -34,9 +35,9 @@ This version features:
 
 ### Prerequisites
 
-- Node.js 18+ and npm
 - PHP 8.1+
 - MySQL 8.0+
+- Apache with mod_rewrite (or XAMPP)
 
 ### 1. Clone and Setup
 
@@ -64,23 +65,21 @@ php -S localhost:8080 -t public
 
 ### 3. Frontend Setup
 
+The PHP frontend runs on Apache (via XAMPP) or any web server with mod_rewrite enabled.
+
+1. Place the project in your web server's document root (e.g., `htdocs` for XAMPP)
+2. Ensure Apache/mod_rewrite is enabled
+3. Access the frontend via your web server
+
 ```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Configure environment
-cp .env.example .env.local
-# Default API URL: http://localhost:8080/api
-
-# Start development server
-npm run dev
+# Example with XAMPP on Windows:
+# Place project in C:\xampp\htdocs\diabetic-patient-management-system
+# Frontend URL: http://localhost/diabetic-patient-management-system/frontend
 ```
 
 ### 4. Access the Application
 
-- **Frontend:** http://localhost:3000
+- **Frontend:** http://localhost/diabetic-patient-management-system/frontend
 - **Backend API:** http://localhost:8080/api
 
 **Demo Credentials:**
@@ -92,22 +91,23 @@ npm run dev
 
 ```
 diabetic-patient-management-system/
-├── frontend/                    # Next.js 16 Application
-│   ├── src/
-│   │   ├── app/                # App Router pages
-│   │   │   ├── (app)/          # Protected dashboard pages
-│   │   │   │   ├── dashboard/
-│   │   │   │   ├── patients/
-│   │   │   │   ├── appointments/
-│   │   │   │   ├── medications/
-│   │   │   │   └── lab-results/
-│   │   │   ├── login/
-│   │   │   └── register/
-│   │   ├── components/         # Reusable UI components
-│   │   └── lib/
-│   │       ├── api.ts          # API client with types
-│   │       └── hooks.ts        # React data hooks
-│   └── tailwind.config.ts
+├── frontend/                    # PHP Frontend Application
+│   ├── assets/
+│   │   └── css/style.css       # Main stylesheet
+│   ├── includes/
+│   │   ├── functions.php       # Helper functions
+│   │   ├── ApiClient.php       # Backend API client
+│   │   └── layout/             # Header/footer templates
+│   ├── pages/
+│   │   ├── auth/               # Login, register, etc.
+│   │   ├── patients/           # Patient CRUD pages
+│   │   ├── appointments/       # Appointment pages
+│   │   ├── medications/        # Medication pages
+│   │   ├── lab-results/        # Lab results pages
+│   │   ├── dashboard.php       # Main dashboard
+│   │   └── settings.php        # User settings
+│   ├── index.php               # Router entry point
+│   └── .htaccess               # URL rewriting rules
 │
 ├── backend/                     # PHP REST API
 │   ├── public/
