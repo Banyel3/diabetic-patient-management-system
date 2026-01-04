@@ -42,14 +42,18 @@ class Database
             // Handle named instances (e.g., .\SQLEXPRESS) vs TCP port
             if (str_contains($host, '\\')) {
                 // Named instance - don't use port
-                $dsn = "sqlsrv:Server={$host};Database={$dbName};TrustServerCertificate=yes";
+                // LoginTimeout=2 reduces connection wait time
+                // ConnectionPooling=1 reuses connections for better performance
+                $dsn = "sqlsrv:Server={$host};Database={$dbName};TrustServerCertificate=yes;LoginTimeout=2;ConnectionPooling=1";
             } else {
                 // Default instance with port
-                $dsn = "sqlsrv:Server={$host},{$port};Database={$dbName};TrustServerCertificate=yes";
+                $dsn = "sqlsrv:Server={$host},{$port};Database={$dbName};TrustServerCertificate=yes;LoginTimeout=2;ConnectionPooling=1";
             }
             $options = [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::SQLSRV_ATTR_QUERY_TIMEOUT => 30,
+                PDO::SQLSRV_ATTR_DIRECT_QUERY => true,  // Use direct queries instead of prepared statements
             ];
             
             // Use Windows Authentication if no user specified
