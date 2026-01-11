@@ -114,6 +114,7 @@ include BASE_PATH . '/includes/layout/header.php';
                     <th>Age/Gender</th>
                     <th>Phone</th>
                     <th>Last HbA1c</th>
+                    <th>Last Updated</th>
                     <th>Status</th>
                     <th class="text-right">Actions</th>
                 </tr>
@@ -135,6 +136,7 @@ include BASE_PATH . '/includes/layout/header.php';
                     $phone = safeStr($patient, 'phone', 'N/A');
                     $lastHba1c = safeFloat($patient, 'last_hba1c');
                     $status = safeStr($patient, 'status', 'Active');
+                    $updatedAt = safeStr($patient, 'updated_at', '');
                 ?>
                 <tr>
                     <td>
@@ -167,6 +169,9 @@ include BASE_PATH . '/includes/layout/header.php';
                         <span class="<?php echo e(getHbA1cColorClass($lastHba1c)); ?> font-semibold">
                             <?php echo $lastHba1c !== null ? e($lastHba1c) . '%' : 'N/A'; ?>
                         </span>
+                    </td>
+                    <td class="text-sm" style="color: var(--text-muted);" title="Updated by trigger">
+                        <?php echo $updatedAt ? formatDate($updatedAt, 'M j, Y H:i') : 'N/A'; ?>
                     </td>
                     <td>
                         <span class="badge <?php echo e(getStatusBadgeClass($status)); ?>">

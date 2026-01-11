@@ -19,6 +19,42 @@ use DiabetaCare\Services\Validator;
 class PatientsController
 {
     /**
+     * GET /api/patients/list
+     * 
+     * Lightweight endpoint for patient dropdowns.
+     * Returns only essential fields: id, patient_code, first_name, last_name, full_name.
+     * No pagination - returns all active patients (for dropdown use).
+     */
+    public function list(Request $request): Response
+    {
+        $clinicId = $request->clinicId;
+        
+        // Use optimized query with minimal columns for dropdown lists
+        // Returns ALL non-deleted patients (including inactive) so edit forms can show current patient
+        $patients = Database::query(
+            'SELECT id, patient_code, first_name, last_name, status
+             FROM patients 
+             WHERE clinic_id = ? AND deleted_at IS NULL
+             ORDER BY first_name, last_name',
+            [$clinicId]
+        );
+
+        // Transform to include full_name and status
+        $items = array_map(function ($patient) {
+            return [
+                'id' => (int) $patient['id'],
+                'patient_code' => $patient['patient_code'],
+                'first_name' => $patient['first_name'],
+                'last_name' => $patient['last_name'],
+                'full_name' => $patient['first_name'] . ' ' . $patient['last_name'],
+                'status' => $patient['status'],
+            ];
+        }, $patients);
+
+        return Response::json(['data' => $items]);
+    }
+
+    /**
      * GET /api/patients
      * 
      * List patients with pagination, search, and filters.
@@ -95,7 +131,9 @@ class PatientsController
             "SELECT id, patient_code, first_name, last_name, date_of_birth, gender,
                     phone, email, address, diabetes_type, diagnosis_date,
                     family_history_diabetes, family_history_notes,
-                    last_hba1c, last_hba1c_date, last_visit_date, status, notes, created_at
+                    emergency_contact_name, emergency_contact_phone, emergency_contact_relation,
+                    height_cm, weight_kg, blood_pressure,
+                    last_hba1c, last_hba1c_date, last_visit_date, status, notes, created_at, updated_at
              FROM patients 
              WHERE {$whereClause}
              ORDER BY {$sortField} {$sortOrder}
@@ -130,6 +168,8 @@ class PatientsController
             'SELECT id, patient_code, first_name, last_name, date_of_birth, gender,
                     phone, email, address, diabetes_type, diagnosis_date,
                     family_history_diabetes, family_history_notes,
+                    emergency_contact_name, emergency_contact_phone, emergency_contact_relation,
+                    height_cm, weight_kg, blood_pressure,
                     last_hba1c, last_hba1c_date, last_visit_date, status, notes, created_at
              FROM patients 
              WHERE id = ? AND clinic_id = ? AND deleted_at IS NULL',
@@ -199,8 +239,10 @@ class PatientsController
                 'INSERT INTO patients (clinic_id, patient_code, first_name, last_name, date_of_birth, 
                                        gender, phone, email, address, diabetes_type, diagnosis_date, 
                                        family_history_diabetes, family_history_notes,
+                                       emergency_contact_name, emergency_contact_phone, emergency_contact_relation,
+                                       height_cm, weight_kg, blood_pressure,
                                        last_hba1c, status, notes)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $clinicId,
                     $patientCode,
@@ -215,6 +257,12 @@ class PatientsController
                     $data['diagnosis_date'] ?? null,
                     $data['family_history_diabetes'] ?? 'unknown',
                     $data['family_history_notes'] ?? null,
+                    $data['emergency_contact_name'] ?? null,
+                    $data['emergency_contact_phone'] ?? null,
+                    $data['emergency_contact_relation'] ?? null,
+                    $data['height_cm'] ?? null,
+                    $data['weight_kg'] ?? null,
+                    $data['blood_pressure'] ?? null,
                     $data['last_hba1c'] ?? null,
                     $data['status'] ?? 'Active',
                     $data['notes'] ?? null,
@@ -228,6 +276,11 @@ class PatientsController
                 'SELECT * FROM patients WHERE id = ?',
                 [$patientId]
             );
+
+            if (!$patient) {
+                error_log("Failed to fetch newly created patient. ID: {$patientId}");
+                return Response::error('CREATE_FAILED', 'Patient was created but could not be retrieved.', [], 500);
+            }
 
             return Response::created($this->transformPatient($patient));
 
@@ -292,6 +345,8 @@ class PatientsController
                     first_name = ?, last_name = ?, date_of_birth = ?, gender = ?,
                     phone = ?, email = ?, address = ?, diabetes_type = ?, diagnosis_date = ?,
                     family_history_diabetes = ?, family_history_notes = ?,
+                    emergency_contact_name = ?, emergency_contact_phone = ?, emergency_contact_relation = ?,
+                    height_cm = ?, weight_kg = ?, blood_pressure = ?,
                     last_hba1c = ?, status = ?, notes = ?, updated_at = {$nowFunc}
                  WHERE id = ? AND clinic_id = ?",
                 [
@@ -306,6 +361,12 @@ class PatientsController
                     $data['diagnosis_date'] ?? null,
                     $data['family_history_diabetes'] ?? 'unknown',
                     $data['family_history_notes'] ?? null,
+                    $data['emergency_contact_name'] ?? null,
+                    $data['emergency_contact_phone'] ?? null,
+                    $data['emergency_contact_relation'] ?? null,
+                    $data['height_cm'] ?? null,
+                    $data['weight_kg'] ?? null,
+                    $data['blood_pressure'] ?? null,
                     $data['last_hba1c'] ?? null,
                     $data['status'] ?? 'Active',
                     $data['notes'] ?? null,
@@ -372,6 +433,8 @@ class PatientsController
             'SELECT id, patient_code, first_name, last_name, date_of_birth, gender,
                     phone, email, address, diabetes_type, diagnosis_date,
                     family_history_diabetes, family_history_notes,
+                    emergency_contact_name, emergency_contact_phone, emergency_contact_relation,
+                    height_cm, weight_kg, blood_pressure,
                     last_hba1c, last_hba1c_date, last_visit_date, status, notes, created_at
              FROM patients 
              WHERE id = ? AND clinic_id = ? AND deleted_at IS NULL',
@@ -488,6 +551,15 @@ class PatientsController
      */
     private function transformPatient(array $patient): array
     {
+        // Calculate BMI if height and weight are available
+        $bmi = null;
+        $heightCm = isset($patient['height_cm']) ? (float) $patient['height_cm'] : null;
+        $weightKg = isset($patient['weight_kg']) ? (float) $patient['weight_kg'] : null;
+        if ($heightCm && $weightKg && $heightCm > 0) {
+            $heightM = $heightCm / 100;
+            $bmi = round($weightKg / ($heightM * $heightM), 1);
+        }
+
         return [
             'id' => (int) $patient['id'],
             'patient_code' => $patient['patient_code'],
@@ -503,12 +575,20 @@ class PatientsController
             'diagnosis_date' => $patient['diagnosis_date'],
             'family_history_diabetes' => $patient['family_history_diabetes'] ?? 'unknown',
             'family_history_notes' => $patient['family_history_notes'] ?? null,
+            'emergency_contact_name' => $patient['emergency_contact_name'] ?? null,
+            'emergency_contact_phone' => $patient['emergency_contact_phone'] ?? null,
+            'emergency_contact_relation' => $patient['emergency_contact_relation'] ?? null,
+            'height_cm' => $heightCm,
+            'weight_kg' => $weightKg,
+            'bmi' => $bmi,
+            'blood_pressure' => $patient['blood_pressure'] ?? null,
             'last_hba1c' => $patient['last_hba1c'] ? (float) $patient['last_hba1c'] : null,
             'last_hba1c_date' => $patient['last_hba1c_date'] ?? null,
             'last_visit_date' => $patient['last_visit_date'] ?? null,
             'status' => $patient['status'],
             'notes' => $patient['notes'],
             'created_at' => $patient['created_at'],
+            'updated_at' => $patient['updated_at'] ?? null,
         ];
     }
 }

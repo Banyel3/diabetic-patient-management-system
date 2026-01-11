@@ -163,9 +163,16 @@ class Database
 
     /**
      * Get last inserted ID
+     * Note: For SQL Server, PDO::lastInsertId() doesn't work reliably with SQLSRV driver.
+     * We use SCOPE_IDENTITY() instead which is the recommended approach.
      */
     public static function lastInsertId(): string
     {
+        if (self::$driver === 'sqlsrv') {
+            // SQL Server: Use SCOPE_IDENTITY() to get the last inserted ID
+            $result = self::queryValue('SELECT SCOPE_IDENTITY()');
+            return $result !== null ? (string) $result : '0';
+        }
         return self::getConnection()->lastInsertId();
     }
 

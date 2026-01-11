@@ -359,8 +359,8 @@ include BASE_PATH . '/includes/layout/header.php';
     <?php endif; ?>
 </div>
 
-<!-- Chart.js Library -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- Chart.js Library (local) -->
+<script src="<?php echo baseUrl('/assets/js/chart.umd.min.js'); ?>"></script>
 
 <script>
 function dismissQuickStart() {

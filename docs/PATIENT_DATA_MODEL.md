@@ -1,5 +1,38 @@
 # Patient Data Model Updates
 
+## Emergency Contact Information
+
+### New Fields
+
+The patients table includes emergency contact tracking:
+
+| Field                        | Type         | Default | Description                         |
+| ---------------------------- | ------------ | ------- | ----------------------------------- |
+| `emergency_contact_name`     | VARCHAR(100) | NULL    | Name of emergency contact person    |
+| `emergency_contact_phone`    | VARCHAR(50)  | NULL    | Phone number of emergency contact   |
+| `emergency_contact_relation` | VARCHAR(50)  | NULL    | Relationship (spouse, parent, etc.) |
+
+### Common Relationship Values
+
+- Spouse
+- Parent
+- Sibling
+- Child
+- Friend
+- Other
+
+### Database Migration (SQL Server)
+
+For existing databases, run these ALTER statements:
+
+```sql
+ALTER TABLE patients ADD emergency_contact_name NVARCHAR(100) NULL;
+ALTER TABLE patients ADD emergency_contact_phone NVARCHAR(50) NULL;
+ALTER TABLE patients ADD emergency_contact_relation NVARCHAR(50) NULL;
+```
+
+---
+
 ## Family History of Diabetes
 
 ### New Fields
@@ -46,14 +79,15 @@ These fields are **required** when creating a patient:
 
 All other fields are optional and can be omitted:
 
-| Category         | Fields                                            |
-| ---------------- | ------------------------------------------------- |
-| Contact          | `phone`, `email`, `address`                       |
-| Diabetes Details | `diagnosis_date`                                  |
-| Family History   | `family_history_diabetes`, `family_history_notes` |
-| Clinical Values  | `last_hba1c` (auto-updated from lab results)      |
-| Status           | `status` (defaults to "Active")                   |
-| Notes            | `notes`                                           |
+| Category          | Fields                                                                            |
+| ----------------- | --------------------------------------------------------------------------------- |
+| Contact           | `phone`, `email`, `address`                                                       |
+| Emergency Contact | `emergency_contact_name`, `emergency_contact_phone`, `emergency_contact_relation` |
+| Diabetes Details  | `diagnosis_date`                                                                  |
+| Family History    | `family_history_diabetes`, `family_history_notes`                                 |
+| Clinical Values   | `last_hba1c` (auto-updated from lab results)                                      |
+| Status            | `status` (defaults to "Active")                                                   |
+| Notes             | `notes`                                                                           |
 
 ### Display of Missing Values
 
@@ -131,6 +165,9 @@ POST /api/patients
   "phone": "(555) 123-4567",
   "email": null,
   "address": null,
+  "emergency_contact_name": "Mary Smith",
+  "emergency_contact_phone": "(555) 987-6543",
+  "emergency_contact_relation": "Spouse",
   "diabetes_type": "Type 2",
   "diagnosis_date": null,
   "family_history_diabetes": "first_degree",
@@ -163,23 +200,30 @@ The patient form now includes:
    - Email
    - Address
 
-3. **Diabetes Information**
+3. **Emergency Contact** (all optional)
+
+   - Emergency Contact Name
+   - Emergency Contact Phone
+   - Emergency Contact Relationship
+
+4. **Diabetes Information**
 
    - Diabetes Type \*
    - Diagnosis Date
 
-4. **Family History of Diabetes** (new section)
+5. **Family History of Diabetes** (new section)
 
    - Family History dropdown
    - Family History Notes text field
 
-5. **Status & Notes**
+6. **Status & Notes**
    - Status
    - Notes
 
 ### Patient View Modal
 
-Displays family history when available:
+Displays all patient information including:
 
+- Emergency contact details (name, phone, relationship)
 - "Family History of Diabetes" field with human-readable value
 - "Family History Notes" section (only shown if notes exist)

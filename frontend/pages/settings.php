@@ -7,8 +7,10 @@ $pageTitle = 'Settings';
 
 // Get current user with safe access
 $user = getCurrentUser() ?? [];
-$userName = safeStr($user, 'name', '');
+$userFirstName = safeStr($user, 'first_name', '');
+$userLastName = safeStr($user, 'last_name', '');
 $userEmail = safeStr($user, 'email', '');
+$userPhone = safeStr($user, 'phone', '');
 $userRole = safeStr($user, 'role', 'User');
 $userCreatedAt = safeStr($user, 'created_at', '');
 
@@ -22,12 +24,17 @@ if (isPost() && post('action') === 'update_profile') {
         $errors[] = 'Invalid form submission.';
     } else {
         $profileData = [
-            'name' => trim(post('name', '')),
+            'first_name' => trim(post('first_name', '')),
+            'last_name' => trim(post('last_name', '')),
             'email' => trim(post('email', '')),
+            'phone' => trim(post('phone', '')),
         ];
         
-        if (empty($profileData['name'])) {
-            $errors[] = 'Name is required.';
+        if (empty($profileData['first_name'])) {
+            $errors[] = 'First name is required.';
+        }
+        if (empty($profileData['last_name'])) {
+            $errors[] = 'Last name is required.';
         }
         if (empty($profileData['email']) || !filter_var($profileData['email'], FILTER_VALIDATE_EMAIL)) {
             $errors[] = 'Valid email is required.';
@@ -36,9 +43,11 @@ if (isPost() && post('action') === 'update_profile') {
         if (empty($errors)) {
             $response = api()->updateProfile($profileData);
             if (safeGet($response, 'success', false)) {
-                // Update session
-                $_SESSION['user']['name'] = $profileData['name'];
+                // Update session with new user data
+                $_SESSION['user']['first_name'] = $profileData['first_name'];
+                $_SESSION['user']['last_name'] = $profileData['last_name'];
                 $_SESSION['user']['email'] = $profileData['email'];
+                $_SESSION['user']['phone'] = $profileData['phone'];
                 setFlash('success', 'Profile updated successfully.');
                 redirect('/settings');
             } else {
@@ -132,14 +141,24 @@ include BASE_PATH . '/includes/layout/header.php';
                 
                 <div class="form-grid">
                     <div class="form-group">
-                        <label class="form-label required">Name</label>
-                        <input type="text" name="name" class="form-input" 
-                               value="<?php echo e($userName); ?>" required>
+                        <label class="form-label required">First Name</label>
+                        <input type="text" name="first_name" class="form-input" 
+                               value="<?php echo e($userFirstName); ?>" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label required">Last Name</label>
+                        <input type="text" name="last_name" class="form-input" 
+                               value="<?php echo e($userLastName); ?>" required>
                     </div>
                     <div class="form-group">
                         <label class="form-label required">Email</label>
                         <input type="email" name="email" class="form-input" 
                                value="<?php echo e($userEmail); ?>" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phone</label>
+                        <input type="text" name="phone" class="form-input" 
+                               value="<?php echo e($userPhone); ?>">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Role</label>

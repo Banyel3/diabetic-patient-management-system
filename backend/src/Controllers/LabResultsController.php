@@ -57,8 +57,9 @@ class LabResultsController
         $clinicId = $request->clinicId;
         $pagination = $request->pagination();
         
+        $search = trim((string) $request->query('search', ''));
         $patientId = $request->query('patient_id');
-        $testName = $request->query('test_name');
+        $testName = $request->query('test_name') ?? $request->query('test_type'); // Accept both parameter names
         $dateFrom = $request->query('date_from');
         $dateTo = $request->query('date_to');
 
@@ -74,6 +75,15 @@ class LabResultsController
 
         $conditions = ['l.clinic_id = ?'];
         $params = [$clinicId];
+
+        if ($search !== '') {
+            // Search by patient name
+            $searchConcat = Database::isSqlServer()
+                ? "(p.first_name + ' ' + p.last_name LIKE ?)"
+                : "(CONCAT(p.first_name, ' ', p.last_name) LIKE ?)";
+            $conditions[] = $searchConcat;
+            $params[] = "%{$search}%";
+        }
 
         if ($patientId) {
             $conditions[] = 'l.patient_id = ?';
@@ -109,9 +119,9 @@ class LabResultsController
         $paginationClause = SqlHelper::paginate($pagination['page_size'], $pagination['offset']);
         $labResults = Database::query(
             "SELECT l.id, l.patient_id, l.test_name, l.test_date, l.result_value,
-                    l.unit, l.reference_range, l.status, l.notes, l.created_at,
+                    l.unit, l.reference_range, l.status, l.notes, l.created_at, l.updated_at,
                     p.patient_code, p.first_name as patient_first_name, 
-                    p.last_name as patient_last_name
+                    p.last_name as patient_last_name, p.last_hba1c, p.last_hba1c_date
              FROM lab_results l
              JOIN patients p ON p.id = l.patient_id
              WHERE {$whereClause}
@@ -227,8 +237,8 @@ class LabResultsController
             $referenceRange = $referenceRange ?? $ref['reference_range'];
         }
 
-        // Auto-determine status based on result vs reference range
-        $status = $data['status'] ?? $this->determineStatus($testName, (string) $data['result_value']);
+        // Auto-determine status based on result vs reference range (always calculated, not user-editable)
+        $status = $this->determineStatus($testName, (string) $data['result_value']);
 
         try {
             Database::execute(
@@ -257,12 +267,17 @@ class LabResultsController
 
             $labResult = Database::queryOne(
                 "SELECT l.*, p.patient_code, p.first_name as patient_first_name, 
-                        p.last_name as patient_last_name
+                        p.last_name as patient_last_name, p.last_hba1c, p.last_hba1c_date
                  FROM lab_results l
                  JOIN patients p ON p.id = l.patient_id
                  WHERE l.id = ?",
                 [$labResultId]
             );
+
+            if (!$labResult) {
+                error_log("Failed to fetch newly created lab result. ID: {$labResultId}");
+                return Response::error('CREATE_FAILED', 'Lab result was created but could not be retrieved.', [], 500);
+            }
 
             return Response::created($this->transformLabResult($labResult));
 
@@ -320,7 +335,8 @@ class LabResultsController
             $referenceRange = $referenceRange ?? $ref['reference_range'];
         }
 
-        $status = $data['status'] ?? $this->determineStatus($testName, (string) $data['result_value']);
+        // Auto-determine status based on result vs reference range (always calculated, not user-editable)
+        $status = $this->determineStatus($testName, (string) $data['result_value']);
 
         try {
             $nowFunc = SqlHelper::now();
@@ -473,6 +489,9 @@ class LabResultsController
             'status' => $lab['status'],
             'notes' => $lab['notes'],
             'created_at' => $lab['created_at'],
+            'updated_at' => $lab['updated_at'] ?? null,
+            'patient_last_hba1c' => isset($lab['last_hba1c']) ? (float) $lab['last_hba1c'] : null,
+            'patient_last_hba1c_date' => $lab['last_hba1c_date'] ?? null,
         ];
     }
 }

@@ -200,6 +200,15 @@ class ApiClient
     // PATIENTS API
     // =========================================================================
 
+    /**
+     * Get lightweight patient list for dropdowns
+     * Returns only: id, patient_code, first_name, last_name, full_name
+     */
+    public function getPatientList(): array
+    {
+        return $this->get('/patients/list');
+    }
+
     public function getPatients(array $params = []): array
     {
         return $this->get('/patients', $params);

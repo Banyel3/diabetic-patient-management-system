@@ -36,9 +36,16 @@ class AppointmentsController
         
         $search = trim((string) $request->query('search', ''));
         $status = $request->query('status');
+        $date = $request->query('date'); // Single date filter
         $dateFrom = $request->query('date_from');
         $dateTo = $request->query('date_to');
         $patientId = $request->query('patient_id');
+
+        // If single date is provided, use it for both from and to
+        if ($date && !$dateFrom && !$dateTo) {
+            $dateFrom = $date;
+            $dateTo = $date;
+        }
 
         // =========================================================================
         // APPOINTMENTS QUERY OPTIMIZATION
@@ -103,9 +110,9 @@ class AppointmentsController
         $paginationClause = SqlHelper::paginate($pagination['page_size'], $pagination['offset']);
         $appointments = Database::query(
             "SELECT a.id, a.patient_id, a.scheduled_at, a.duration_minutes, 
-                    a.type, a.status, a.notes, a.created_at,
+                    a.type, a.status, a.notes, a.created_at, a.updated_at,
                     p.patient_code, p.first_name as patient_first_name, 
-                    p.last_name as patient_last_name
+                    p.last_name as patient_last_name, p.last_visit_date
              FROM appointments a
              JOIN patients p ON p.id = a.patient_id
              WHERE {$whereClause}
@@ -210,12 +217,17 @@ class AppointmentsController
             // Fetch and return created appointment
             $appointment = Database::queryOne(
                 "SELECT a.*, p.patient_code, p.first_name as patient_first_name, 
-                        p.last_name as patient_last_name
+                        p.last_name as patient_last_name, p.last_visit_date
                  FROM appointments a
                  JOIN patients p ON p.id = a.patient_id
                  WHERE a.id = ?",
                 [$appointmentId]
             );
+
+            if (!$appointment) {
+                error_log("Failed to fetch newly created appointment. ID: {$appointmentId}");
+                return Response::error('CREATE_FAILED', 'Appointment was created but could not be retrieved.', [], 500);
+            }
 
             return Response::created($this->transformAppointment($appointment));
 
@@ -371,6 +383,8 @@ class AppointmentsController
             'status' => $apt['status'],
             'notes' => $apt['notes'],
             'created_at' => $apt['created_at'],
+            'updated_at' => $apt['updated_at'] ?? null,
+            'patient_last_visit_date' => $apt['last_visit_date'] ?? null,
         ];
     }
 }

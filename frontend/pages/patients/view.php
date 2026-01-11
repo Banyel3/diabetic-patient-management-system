@@ -86,6 +86,7 @@ include BASE_PATH . '/includes/layout/header.php';
                         $patientCode = safeStr($patient, 'patient_code', '');
                         $diabetesType = safeStr($patient, 'diabetes_type', 'Unknown');
                         $status = safeStr($patient, 'status', 'Active');
+                        $headerUpdatedAt = safeStr($patient, 'updated_at', '');
                     ?>
                     <h1 class="page-title mb-0"><?php echo e($firstName . ' ' . $lastName); ?></h1>
                     <div class="flex items-center gap-3 mt-1">
@@ -96,6 +97,12 @@ include BASE_PATH . '/includes/layout/header.php';
                         <span class="badge <?php echo e(getStatusBadgeClass($status)); ?>">
                             <?php echo e($status); ?>
                         </span>
+                        <?php if ($headerUpdatedAt): ?>
+                        <span class="text-xs" style="color: var(--text-muted);" title="Auto-updated by trigger">
+                            <i data-lucide="clock" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle;"></i>
+                            Updated: <?php echo formatDate($headerUpdatedAt, 'M j, Y H:i'); ?>
+                        </span>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -142,6 +149,9 @@ include BASE_PATH . '/includes/layout/header.php';
         $address = safeStr($patient, 'address', 'N/A');
         $diagnosisDate = safeStr($patient, 'diagnosis_date', '');
         $lastHba1c = safeFloat($patient, 'last_hba1c');
+        $lastHba1cDate = safeStr($patient, 'last_hba1c_date', '');
+        $lastVisitDate = safeStr($patient, 'last_visit_date', '');
+        $updatedAt = safeStr($patient, 'updated_at', '');
         $targetHba1c = safeFloat($patient, 'target_hba1c');
         $bloodPressure = safeStr($patient, 'blood_pressure', 'N/A');
         $bmi = safeFloat($patient, 'bmi');
@@ -213,6 +223,14 @@ include BASE_PATH . '/includes/layout/header.php';
                         <p class="<?php echo e(getHbA1cColorClass($lastHba1c)); ?> font-semibold">
                             <?php echo $lastHba1c !== null ? e($lastHba1c) . '%' : 'N/A'; ?>
                         </p>
+                    </div>
+                    <div class="info-item">
+                        <label>Last HbA1c Date</label>
+                        <p title="Auto-updated by trigger"><?php echo $lastHba1cDate ? formatDate($lastHba1cDate, 'M j, Y') : 'N/A'; ?></p>
+                    </div>
+                    <div class="info-item">
+                        <label>Last Visit Date</label>
+                        <p title="Auto-updated by trigger"><?php echo $lastVisitDate ? formatDate($lastVisitDate, 'M j, Y') : 'N/A'; ?></p>
                     </div>
                     <div class="info-item">
                         <label>Target HbA1c</label>
@@ -295,10 +313,10 @@ include BASE_PATH . '/includes/layout/header.php';
                 <thead>
                     <tr>
                         <th>Date</th>
-                        <th>Test Type</th>
-                        <th>Value</th>
-                        <th>HbA1c</th>
-                        <th>Fasting Glucose</th>
+                        <th>Test Name</th>
+                        <th>Result</th>
+                        <th>Reference Range</th>
+                        <th>Status</th>
                         <th class="text-right">Actions</th>
                     </tr>
                 </thead>
@@ -306,21 +324,26 @@ include BASE_PATH . '/includes/layout/header.php';
                     <?php foreach ($labResults as $lab): 
                         $labId = safeInt($lab, 'id');
                         $labDate = safeStr($lab, 'test_date', '');
-                        $labType = safeStr($lab, 'test_type', 'General');
-                        $labValue = safeStr($lab, 'value', 'N/A');
-                        $labHba1c = safeFloat($lab, 'hba1c');
-                        $labFasting = safeFloat($lab, 'fasting_glucose');
+                        $labTestName = safeStr($lab, 'test_name', 'Unknown');
+                        $labValue = safeStr($lab, 'result_value', 'N/A');
+                        $labUnit = safeStr($lab, 'unit', '');
+                        $labRefRange = safeStr($lab, 'reference_range', '');
+                        $labStatus = safeStr($lab, 'status', 'Pending');
                     ?>
                     <tr>
                         <td><?php echo formatDate($labDate); ?></td>
-                        <td><?php echo e($labType); ?></td>
-                        <td><?php echo e($labValue); ?></td>
+                        <td class="font-medium"><?php echo e($labTestName); ?></td>
                         <td>
-                            <span class="<?php echo e(getHbA1cColorClass($labHba1c)); ?> font-semibold">
-                                <?php echo $labHba1c !== null ? e($labHba1c) . '%' : 'N/A'; ?>
+                            <span class="font-semibold">
+                                <?php echo e($labValue); ?><?php echo $labUnit ? ' ' . e($labUnit) : ''; ?>
                             </span>
                         </td>
-                        <td><?php echo $labFasting !== null ? e($labFasting) . ' mg/dL' : 'N/A'; ?></td>
+                        <td class="text-muted"><?php echo e($labRefRange ?: 'N/A'); ?></td>
+                        <td>
+                            <span class="badge <?php echo e(getStatusBadgeClass($labStatus)); ?>">
+                                <?php echo e($labStatus); ?>
+                            </span>
+                        </td>
                         <td>
                             <div class="table-actions">
                                 <a href="<?php echo baseUrl('/lab-results/view?id=' . $labId); ?>" class="table-action-btn" title="View">

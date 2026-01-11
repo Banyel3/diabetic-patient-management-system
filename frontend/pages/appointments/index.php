@@ -134,6 +134,8 @@ include BASE_PATH . '/includes/layout/header.php';
                     <th>Date & Time</th>
                     <th>Type</th>
                     <th>Duration</th>
+                    <th>Days Until</th>
+                    <th>Last Updated</th>
                     <th>Status</th>
                     <th class="text-right">Actions</th>
                 </tr>
@@ -149,6 +151,16 @@ include BASE_PATH . '/includes/layout/header.php';
                     $appointmentType = safeStr($appointment, 'type', 'Check-up');
                     $durationMinutes = safeInt($appointment, 'duration_minutes', 30);
                     $aptStatus = safeStr($appointment, 'status', 'Scheduled');
+                    $updatedAt = safeStr($appointment, 'updated_at', '');
+                    
+                    // Calculate days until appointment
+                    $daysUntil = null;
+                    if ($appointmentDate) {
+                        $appointmentDateTime = new DateTime($appointmentDate);
+                        $today = new DateTime('today');
+                        $diff = $today->diff($appointmentDateTime);
+                        $daysUntil = $diff->invert ? -$diff->days : $diff->days;
+                    }
                 ?>
                 <tr>
                     <td>
@@ -179,6 +191,24 @@ include BASE_PATH . '/includes/layout/header.php';
                     </td>
                     <td class="text-sm" style="color: var(--text-secondary);">
                         <?php echo e($durationMinutes); ?> min
+                    </td>
+                    <td class="text-sm">
+                        <?php if ($daysUntil === null): ?>
+                            <span style="color: var(--text-muted);">N/A</span>
+                        <?php elseif ($daysUntil < 0): ?>
+                            <span style="color: var(--text-muted);"><?php echo abs($daysUntil); ?> days ago</span>
+                        <?php elseif ($daysUntil === 0): ?>
+                            <span class="badge badge-info">Today</span>
+                        <?php elseif ($daysUntil === 1): ?>
+                            <span class="badge badge-warning">Tomorrow</span>
+                        <?php elseif ($daysUntil <= 7): ?>
+                            <span style="color: var(--warning);"><?php echo $daysUntil; ?> days</span>
+                        <?php else: ?>
+                            <span style="color: var(--text-secondary);"><?php echo $daysUntil; ?> days</span>
+                        <?php endif; ?>
+                    </td>
+                    <td class="text-sm" style="color: var(--text-muted);" title="Updated by trigger">
+                        <?php echo $updatedAt ? formatDate($updatedAt, 'M j, Y H:i') : 'N/A'; ?>
                     </td>
                     <td>
                         <span class="badge <?php echo e(getAppointmentStatusBadgeClass($aptStatus)); ?>">

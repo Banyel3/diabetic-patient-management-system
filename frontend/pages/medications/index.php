@@ -55,9 +55,9 @@ $pagination = safeGet($response, 'success') ? safeGet($response, 'pagination', [
 $totalItems = safeInt($pagination, 'total_items', 0);
 $totalPages = safeInt($pagination, 'total_pages', 1);
 
-// Fetch patients for filter dropdown
-$patientsResponse = api()->getPatients(['page_size' => 100]);
-$patients = safeGet($patientsResponse, 'success') ? safeGet($patientsResponse, 'items', []) : [];
+// Fetch patients for filter dropdown (using lightweight endpoint)
+$patientsResponse = api()->getPatientList();
+$patients = safeGet($patientsResponse, 'data', []);
 
 $successMessage = getFlash('success');
 $errorMessage = getFlash('error');
@@ -143,6 +143,7 @@ include BASE_PATH . '/includes/layout/header.php';
                     <th>Dosage</th>
                     <th>Frequency</th>
                     <th>Start Date</th>
+                    <th>Last Updated</th>
                     <th>Status</th>
                     <th class="text-right">Actions</th>
                 </tr>
@@ -159,6 +160,7 @@ include BASE_PATH . '/includes/layout/header.php';
                     $startDate = safeStr($medication, 'start_date', '');
                     $medStatus = safeStr($medication, 'status', 'Active');
                     $isActive = strtolower($medStatus) === 'active';
+                    $updatedAt = safeStr($medication, 'updated_at', '');
                 ?>
                 <tr>
                     <td>
@@ -180,6 +182,9 @@ include BASE_PATH . '/includes/layout/header.php';
                     </td>
                     <td class="text-sm" style="color: var(--text-secondary);">
                         <?php echo formatDate($startDate); ?>
+                    </td>
+                    <td class="text-sm" style="color: var(--text-muted);" title="Updated by trigger">
+                        <?php echo $updatedAt ? formatDate($updatedAt, 'M j, Y H:i') : 'N/A'; ?>
                     </td>
                     <td>
                         <span class="badge <?php echo $isActive ? 'badge-success' : 'badge-secondary'; ?>">

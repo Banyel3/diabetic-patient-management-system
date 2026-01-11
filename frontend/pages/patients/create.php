@@ -17,6 +17,9 @@ $formData = [
     'diabetes_type' => 'Type 2',
     'diagnosis_date' => '',
     'medical_history' => '',
+    'height_cm' => '',
+    'weight_kg' => '',
+    'blood_pressure' => '',
     'emergency_contact_name' => '',
     'emergency_contact_phone' => '',
     'emergency_contact_relation' => '',
@@ -40,6 +43,9 @@ if (isPost()) {
             'diabetes_type' => post('diabetes_type', 'Type 2'),
             'diagnosis_date' => post('diagnosis_date', ''),
             'medical_history' => trim(post('medical_history', '')),
+            'height_cm' => post('height_cm', '') !== '' ? (float) post('height_cm') : null,
+            'weight_kg' => post('weight_kg', '') !== '' ? (float) post('weight_kg') : null,
+            'blood_pressure' => trim(post('blood_pressure', '')),
             'emergency_contact_name' => trim(post('emergency_contact_name', '')),
             'emergency_contact_phone' => trim(post('emergency_contact_phone', '')),
             'emergency_contact_relation' => trim(post('emergency_contact_relation', '')),
@@ -201,6 +207,35 @@ include BASE_PATH . '/includes/layout/header.php';
                         <label class="form-label">Medical History</label>
                         <textarea name="medical_history" class="form-input" rows="3"
                                   placeholder="Enter any relevant medical history, allergies, or conditions..."><?php echo e($formData['medical_history']); ?></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Vitals -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i data-lucide="heart-pulse"></i>
+                    Vitals
+                </h3>
+            </div>
+            <div class="card-body">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">Height (cm)</label>
+                        <input type="number" name="height_cm" class="form-input" step="0.1" min="0" max="300"
+                               value="<?php echo e($formData['height_cm']); ?>" placeholder="e.g., 170">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Weight (kg)</label>
+                        <input type="number" name="weight_kg" class="form-input" step="0.1" min="0" max="500"
+                               value="<?php echo e($formData['weight_kg']); ?>" placeholder="e.g., 70">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Blood Pressure</label>
+                        <input type="text" name="blood_pressure" class="form-input" 
+                               value="<?php echo e($formData['blood_pressure']); ?>" placeholder="e.g., 120/80">
                     </div>
                 </div>
             </div>

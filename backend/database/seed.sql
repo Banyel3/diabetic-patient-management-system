@@ -52,7 +52,74 @@ INSERT INTO appointments (id, clinic_id, patient_id, scheduled_at, duration_minu
 (13, 1, 3, '2026-01-08 10:00:00', 30, 'Check-up', 'Scheduled', NULL),
 (14, 1, 9, '2026-01-05 14:00:00', 30, 'Follow-up', 'Scheduled', 'Diet review');
 
--- Insert sample medications
+-- ============================================================================
+-- BULK APPOINTMENTS DATA (2000 records)
+-- Generates appointments connected to existing patients
+-- ============================================================================
+
+-- Generate 2000 appointments for existing patients
+SET NOCOUNT ON;
+
+DECLARE @i INT = 15;  -- Start after manual inserts
+DECLARE @patient_id INT;
+DECLARE @scheduled_at DATETIME2;
+DECLARE @type NVARCHAR(20);
+DECLARE @status NVARCHAR(20);
+DECLARE @duration INT;
+DECLARE @notes NVARCHAR(MAX);
+
+WHILE @i <= 2014
+BEGIN
+    -- Random patient (1 to 2011)
+    SET @patient_id = ABS(CHECKSUM(NEWID())) % 2011 + 1;
+    
+    -- Random date between 6 months ago and 3 months from now
+    SET @scheduled_at = DATEADD(DAY, ABS(CHECKSUM(NEWID())) % 270 - 180, GETDATE());
+    SET @scheduled_at = DATEADD(HOUR, 8 + (ABS(CHECKSUM(NEWID())) % 10), CAST(CAST(@scheduled_at AS DATE) AS DATETIME2));
+    SET @scheduled_at = DATEADD(MINUTE, (ABS(CHECKSUM(NEWID())) % 4) * 15, @scheduled_at);
+    
+    -- Random type
+    SET @type = CASE ABS(CHECKSUM(NEWID())) % 5
+        WHEN 0 THEN 'Check-up'
+        WHEN 1 THEN 'Follow-up'
+        WHEN 2 THEN 'Lab Review'
+        WHEN 3 THEN 'Consultation'
+        ELSE 'New Patient'
+    END;
+    
+    -- Status based on date
+    IF @scheduled_at < GETDATE()
+        SET @status = CASE ABS(CHECKSUM(NEWID())) % 3
+            WHEN 0 THEN 'Completed'
+            WHEN 1 THEN 'Cancelled'
+            ELSE 'No-show'
+        END;
+    ELSE
+        SET @status = 'Scheduled';
+    
+    -- Random duration (15, 30, 45, 60)
+    SET @duration = (ABS(CHECKSUM(NEWID())) % 4 + 1) * 15;
+    
+    -- Random notes
+    SET @notes = CASE ABS(CHECKSUM(NEWID())) % 5
+        WHEN 0 THEN 'Regular diabetes management check'
+        WHEN 1 THEN 'HbA1c review and medication adjustment'
+        WHEN 2 THEN 'Blood pressure and glucose monitoring'
+        WHEN 3 THEN 'Diet and exercise counseling'
+        ELSE NULL
+    END;
+    
+    INSERT INTO appointments (clinic_id, patient_id, scheduled_at, duration_minutes, type, status, notes, created_at, updated_at)
+    VALUES (1, @patient_id, @scheduled_at, @duration, @type, @status, @notes, DATEADD(DAY, -ABS(CHECKSUM(NEWID())) % 30, @scheduled_at), GETDATE());
+    
+    SET @i = @i + 1;
+END;
+
+SET NOCOUNT OFF;
+
+-- ============================================================================
+-- SAMPLE MEDICATIONS DATA
+-- ============================================================================
 INSERT INTO medications (id, clinic_id, patient_id, name, dosage, frequency, start_date, end_date, status, notes) VALUES
 (1, 1, 1, 'Metformin', '500mg', 'Twice daily', '2020-06-15', NULL, 'Active', 'Take with meals'),
 (2, 1, 1, 'Lisinopril', '10mg', 'Once daily', '2021-08-01', NULL, 'Active', 'Blood pressure management'),

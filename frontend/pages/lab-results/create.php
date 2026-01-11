@@ -18,7 +18,6 @@ $formData = [
     'result_value' => '',
     'unit' => '%',
     'reference_range' => '< 7.0',
-    'status' => 'Normal',
     'notes' => '',
 ];
 
@@ -36,9 +35,9 @@ $testReferences = [
     'Triglycerides' => ['unit' => 'mg/dL', 'reference_range' => '< 150'],
 ];
 
-// Fetch patients for dropdown
-$patientsResponse = api()->getPatients(['page_size' => 100]);
-$patients = safeGet($patientsResponse, 'success', false) ? safeGet($patientsResponse, 'items', []) : [];
+// Fetch patients for dropdown (using lightweight endpoint)
+$patientsResponse = api()->getPatientList();
+$patients = safeGet($patientsResponse, 'data', []);
 
 // Handle form submission
 if (isPost()) {
@@ -52,7 +51,6 @@ if (isPost()) {
             'result_value' => trim(post('result_value', '')),
             'unit' => trim(post('unit', '')),
             'reference_range' => trim(post('reference_range', '')),
-            'status' => post('status', 'Normal'),
             'notes' => trim(post('notes', '')),
         ]);
         
@@ -135,10 +133,12 @@ include BASE_PATH . '/includes/layout/header.php';
                                 $ptFirstName = safeStr($patient, 'first_name', '');
                                 $ptLastName = safeStr($patient, 'last_name', '');
                                 $ptCode = safeStr($patient, 'patient_code', '');
+                                $ptStatus = safeStr($patient, 'status', 'Active');
+                                $statusIndicator = $ptStatus !== 'Active' ? ' [' . $ptStatus . ']' : '';
                             ?>
                             <option value="<?php echo $ptId; ?>" 
                                     <?php echo $formData['patient_id'] == $ptId ? 'selected' : ''; ?>>
-                                <?php echo e($ptFirstName . ' ' . $ptLastName); ?> 
+                                <?php echo e($ptFirstName . ' ' . $ptLastName . $statusIndicator); ?> 
                                 (<?php echo e($ptCode); ?>)
                             </option>
                             <?php endforeach; ?>
@@ -188,15 +188,7 @@ include BASE_PATH . '/includes/layout/header.php';
                         <label class="form-label">Reference Range</label>
                         <input type="text" name="reference_range" id="reference_range" class="form-input" 
                                value="<?php echo e($formData['reference_range']); ?>" placeholder="e.g., < 7.0">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Status</label>
-                        <select name="status" class="form-select">
-                            <option value="Normal" <?php echo $formData['status'] === 'Normal' ? 'selected' : ''; ?>>Normal</option>
-                            <option value="Abnormal" <?php echo $formData['status'] === 'Abnormal' ? 'selected' : ''; ?>>Abnormal</option>
-                            <option value="Critical" <?php echo $formData['status'] === 'Critical' ? 'selected' : ''; ?>>Critical</option>
-                            <option value="Pending" <?php echo $formData['status'] === 'Pending' ? 'selected' : ''; ?>>Pending</option>
-                        </select>
+                        <small class="form-hint">Status is auto-calculated based on result and reference range</small>
                     </div>
                 </div>
             </div>

@@ -81,7 +81,7 @@ class MedicationsController
         $medications = Database::query(
             "SELECT m.id, m.patient_id, m.name, m.dosage, 
                     m.frequency, m.start_date, m.end_date,
-                    m.status, m.notes, m.created_at,
+                    m.status, m.notes, m.created_at, m.updated_at,
                     p.patient_code, p.first_name as patient_first_name, 
                     p.last_name as patient_last_name
              FROM medications m
@@ -198,6 +198,11 @@ class MedicationsController
                  WHERE m.id = ?",
                 [$medicationId]
             );
+
+            if (!$medication) {
+                error_log("Failed to fetch newly created medication. ID: {$medicationId}");
+                return Response::error('CREATE_FAILED', 'Medication was created but could not be retrieved.', [], 500);
+            }
 
             return Response::created($this->transformMedication($medication));
 
@@ -357,6 +362,7 @@ class MedicationsController
             'status' => $med['status'],
             'notes' => $med['notes'],
             'created_at' => $med['created_at'],
+            'updated_at' => $med['updated_at'] ?? null,
         ];
     }
 }

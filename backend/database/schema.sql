@@ -171,6 +171,16 @@ CREATE TABLE IF NOT EXISTS patients (
     family_history_diabetes ENUM('none', 'first_degree', 'second_degree', 'unknown') DEFAULT 'unknown',
     family_history_notes TEXT, -- Optional free-text notes about family history
     
+    -- Emergency Contact Information
+    emergency_contact_name VARCHAR(100),      -- Name of emergency contact person
+    emergency_contact_phone VARCHAR(50),      -- Phone number of emergency contact
+    emergency_contact_relation VARCHAR(50),   -- Relationship (e.g., spouse, parent, sibling)
+    
+    -- Physical Measurements
+    height_cm DECIMAL(5,1),                   -- Height in centimeters
+    weight_kg DECIMAL(5,1),                   -- Weight in kilograms
+    blood_pressure VARCHAR(20),               -- Blood pressure (e.g., "120/80")
+    
     -- Latest Clinical Values (denormalized for dashboard performance)
     -- Updated via triggers or application logic when lab results are added
     last_hba1c DECIMAL(4,2),

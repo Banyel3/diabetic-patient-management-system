@@ -516,8 +516,8 @@ class DashboardController
             // Monthly average HbA1c for the clinic
             $query = Database::isSqlServer()
                 ? "SELECT 
-                        FORMAT(l.test_date, 'yyyy-MM') as month,
-                        FORMAT(l.test_date, 'MMM yyyy') as month_label,
+                        CONVERT(VARCHAR(7), l.test_date, 120) as month,
+                        SUBSTRING(DATENAME(MONTH, l.test_date), 1, 3) + ' ' + CAST(YEAR(l.test_date) AS VARCHAR) as month_label,
                         AVG(CAST(l.result_value AS DECIMAL(4,1))) as avg_hba1c,
                         COUNT(*) as test_count
                    FROM lab_results l
@@ -526,7 +526,8 @@ class DashboardController
                      AND l.test_name = 'HbA1c'
                      AND l.test_date >= DATEADD(MONTH, -?, CAST(GETDATE() AS DATE))
                      AND p.deleted_at IS NULL
-                   GROUP BY FORMAT(l.test_date, 'yyyy-MM'), FORMAT(l.test_date, 'MMM yyyy')
+                   GROUP BY CONVERT(VARCHAR(7), l.test_date, 120), 
+                            SUBSTRING(DATENAME(MONTH, l.test_date), 1, 3) + ' ' + CAST(YEAR(l.test_date) AS VARCHAR)
                    ORDER BY month ASC"
                 : "SELECT 
                         DATE_FORMAT(l.test_date, '%Y-%m') as month,
@@ -615,13 +616,13 @@ class DashboardController
             // Monthly appointments trend (for line chart)
             $appointmentTrendQuery = Database::isSqlServer()
                 ? "SELECT 
-                        FORMAT(scheduled_at, 'yyyy-MM') as month,
-                        FORMAT(scheduled_at, 'MMM') as month_label,
+                        CONVERT(VARCHAR(7), scheduled_at, 120) as month,
+                        SUBSTRING(DATENAME(MONTH, scheduled_at), 1, 3) as month_label,
                         COUNT(*) as total
                    FROM appointments 
                    WHERE clinic_id = ?
                      AND scheduled_at >= DATEADD(MONTH, -6, CAST(GETDATE() AS DATE))
-                   GROUP BY FORMAT(scheduled_at, 'yyyy-MM'), FORMAT(scheduled_at, 'MMM')
+                   GROUP BY CONVERT(VARCHAR(7), scheduled_at, 120), SUBSTRING(DATENAME(MONTH, scheduled_at), 1, 3)
                    ORDER BY month ASC"
                 : "SELECT 
                         DATE_FORMAT(scheduled_at, '%Y-%m') as month,

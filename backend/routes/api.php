@@ -67,6 +67,7 @@ $router->group('', [AuthMiddleware::class], function($router) {
     // ---------------------------------------------------------------------------
     // Patients CRUD
     // ---------------------------------------------------------------------------
+    $router->get('/api/patients/list', [PatientsController::class, 'list']);  // Lightweight endpoint for dropdowns
     $router->get('/api/patients', [PatientsController::class, 'index']);
     $router->get('/api/patients/{id}/summary', [PatientsController::class, 'summary']);
     $router->get('/api/patients/{id}', [PatientsController::class, 'show']);

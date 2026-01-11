@@ -30,16 +30,7 @@ $apptPatientName = safeStr($appointment, 'patient_name', 'Unknown');
 $apptDurationMinutes = safeInt($appointment, 'duration_minutes', 30);
 $apptNotes = safeStr($appointment, 'notes', '');
 
-// Get status badge class
-function getAppointmentStatusBadgeClass($status): string {
-    return match(strtolower($status ?? '')) {
-        'scheduled' => 'badge-info',
-        'completed' => 'badge-success',
-        'cancelled' => 'badge-danger',
-        'no-show' => 'badge-warning',
-        default => 'badge-secondary'
-    };
-}
+// Note: getAppointmentStatusBadgeClass() is defined in includes/functions.php
 
 $successMessage = getFlash('success');
 $errorMessage = getFlash('error');

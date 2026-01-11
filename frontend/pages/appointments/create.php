@@ -19,9 +19,9 @@ $formData = [
     'status' => 'Scheduled',
 ];
 
-// Fetch patients for dropdown
-$patientsResponse = api()->getPatients(['page_size' => 100]);
-$patients = safeGet($patientsResponse, 'success', false) ? safeGet($patientsResponse, 'items', []) : [];
+// Fetch patients for dropdown (using lightweight endpoint)
+$patientsResponse = api()->getPatientList();
+$patients = safeGet($patientsResponse, 'data', []);
 
 // Handle form submission
 if (isPost()) {
@@ -122,10 +122,12 @@ include BASE_PATH . '/includes/layout/header.php';
                                 $ptFirstName = safeStr($patient, 'first_name', '');
                                 $ptLastName = safeStr($patient, 'last_name', '');
                                 $ptCode = safeStr($patient, 'patient_code', '');
+                                $ptStatus = safeStr($patient, 'status', 'Active');
+                                $statusIndicator = $ptStatus !== 'Active' ? ' [' . $ptStatus . ']' : '';
                             ?>
                             <option value="<?php echo $ptId; ?>" 
                                     <?php echo $formData['patient_id'] == $ptId ? 'selected' : ''; ?>>
-                                <?php echo e($ptFirstName . ' ' . $ptLastName); ?> 
+                                <?php echo e($ptFirstName . ' ' . $ptLastName . $statusIndicator); ?> 
                                 (<?php echo e($ptCode); ?>)
                             </option>
                             <?php endforeach; ?>

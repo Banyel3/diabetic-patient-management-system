@@ -40,9 +40,9 @@ $pagination = safeGet($response, 'success') ? safeGet($response, 'pagination', [
 $totalItems = safeInt($pagination, 'total_items', 0);
 $totalPages = safeInt($pagination, 'total_pages', 1);
 
-// Fetch patients for filter dropdown
-$patientsResponse = api()->getPatients(['page_size' => 100]);
-$patients = safeGet($patientsResponse, 'success') ? safeGet($patientsResponse, 'items', []) : [];
+// Fetch patients for filter dropdown (using lightweight endpoint)
+$patientsResponse = api()->getPatientList();
+$patients = safeGet($patientsResponse, 'data', []);
 
 $successMessage = getFlash('success');
 $errorMessage = getFlash('error');
@@ -135,6 +135,7 @@ include BASE_PATH . '/includes/layout/header.php';
                     <th>Test Date</th>
                     <th>Test Name</th>
                     <th>Result</th>
+                    <th>Last Updated</th>
                     <th>Status</th>
                     <th class="text-right">Actions</th>
                 </tr>
@@ -150,6 +151,7 @@ include BASE_PATH . '/includes/layout/header.php';
                     $resultValue = safeStr($lab, 'result_value', '');
                     $unit = safeStr($lab, 'unit', '');
                     $labStatus = safeStr($lab, 'status', 'Normal');
+                    $updatedAt = safeStr($lab, 'updated_at', '');
                 ?>
                 <tr>
                     <td>
@@ -172,6 +174,9 @@ include BASE_PATH . '/includes/layout/header.php';
                         <?php else: ?>
                         <span style="color: var(--text-muted);">N/A</span>
                         <?php endif; ?>
+                    </td>
+                    <td class="text-sm" style="color: var(--text-muted);" title="Updated by trigger">
+                        <?php echo $updatedAt ? formatDate($updatedAt, 'M j, Y H:i') : 'N/A'; ?>
                     </td>
                     <td>
                         <span class="badge <?php echo e(getStatusBadgeClass($labStatus)); ?>">
