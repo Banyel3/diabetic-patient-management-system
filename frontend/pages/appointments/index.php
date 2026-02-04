@@ -55,6 +55,47 @@ $pagination = safeGet($response, 'success') ? safeGet($response, 'pagination', [
 $totalItems = safeInt($pagination, 'total_items', 0);
 $totalPages = safeInt($pagination, 'total_pages', 1);
 
+// Fetch page statistics
+$statsResponse = api()->getAppointmentsStats();
+$pageStats = safeGet($statsResponse, 'success') ? $statsResponse : null;
+
+// Build stats cards array
+$stats = [];
+if ($pageStats) {
+    $today = safeGet($pageStats, 'today', []);
+    $byStatus = safeGet($pageStats, 'by_status', []);
+    $stats = [
+        [
+            'label' => 'Today\'s Appointments',
+            'value' => safeInt($today, 'total', 0),
+            'change' => safeInt($today, 'scheduled', 0) . ' scheduled',
+            'icon' => 'calendar',
+            'iconClass' => 'blue',
+        ],
+        [
+            'label' => 'This Week',
+            'value' => safeInt($pageStats, 'this_week', 0),
+            'change' => 'Total this week',
+            'icon' => 'calendar-days',
+            'iconClass' => 'accent',
+        ],
+        [
+            'label' => 'Upcoming',
+            'value' => safeInt($pageStats, 'upcoming', 0),
+            'change' => 'Scheduled ahead',
+            'icon' => 'clock',
+            'iconClass' => 'green',
+        ],
+        [
+            'label' => 'Completed',
+            'value' => safeInt($byStatus, 'completed', 0),
+            'change' => safeInt($byStatus, 'cancelled', 0) . ' cancelled, ' . safeInt($byStatus, 'no_show', 0) . ' no-show',
+            'icon' => 'check-circle',
+            'iconClass' => 'purple',
+        ],
+    ];
+}
+
 $successMessage = getFlash('success');
 $errorMessage = getFlash('error');
 
@@ -93,6 +134,24 @@ include BASE_PATH . '/includes/layout/header.php';
             </a>
         </div>
     </div>
+    
+    <!-- Stats Summary Cards -->
+    <?php if (!empty($stats)): ?>
+    <div class="grid grid-4 mb-6">
+        <?php foreach ($stats as $stat): ?>
+        <div class="card stat-card">
+            <div class="flex items-center justify-between mb-3">
+                <div class="stat-icon <?php echo e($stat['iconClass']); ?>">
+                    <i data-lucide="<?php echo e($stat['icon']); ?>"></i>
+                </div>
+            </div>
+            <p class="stat-value"><?php echo e($stat['value']); ?></p>
+            <p class="stat-label"><?php echo e($stat['label']); ?></p>
+            <p class="stat-change"><?php echo e($stat['change']); ?></p>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
     
     <!-- Search and Filter -->
     <form method="GET" action="<?php echo baseUrl('/appointments'); ?>" class="search-filters">
@@ -193,10 +252,16 @@ include BASE_PATH . '/includes/layout/header.php';
                         <?php echo e($durationMinutes); ?> min
                     </td>
                     <td class="text-sm">
-                        <?php if ($daysUntil === null): ?>
+                        <?php 
+                        // For completed/cancelled/no-show - days until is not relevant
+                        $isFinishedStatus = in_array($aptStatus, ['Completed', 'Cancelled', 'No-show']);
+                        
+                        if ($daysUntil === null): ?>
                             <span style="color: var(--text-muted);">N/A</span>
+                        <?php elseif ($isFinishedStatus): ?>
+                            <span style="color: var(--text-muted);">—</span>
                         <?php elseif ($daysUntil < 0): ?>
-                            <span style="color: var(--text-muted);"><?php echo abs($daysUntil); ?> days ago</span>
+                            <span class="badge badge-danger">Overdue</span>
                         <?php elseif ($daysUntil === 0): ?>
                             <span class="badge badge-info">Today</span>
                         <?php elseif ($daysUntil === 1): ?>

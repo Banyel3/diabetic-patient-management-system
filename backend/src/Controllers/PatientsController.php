@@ -4,6 +4,8 @@
  * 
  * Full CRUD operations for patient management.
  * All operations are scoped to the authenticated user's clinic.
+ * 
+ * @see docs/DATABASE_OBJECTS_BY_CONTROLLER.md for database objects documentation
  */
 
 declare(strict_types=1);
@@ -54,6 +56,61 @@ class PatientsController
         return Response::json(['data' => $items]);
     }
 
+    //VIEW - Uses: vw_PatientDashboardSummary, vw_HbA1cDistribution
+    /**
+     * GET /api/patients/stats
+     * 
+     * Get summary statistics for patients page dashboard.
+     * Uses database views for optimized aggregation.
+     */
+    public function stats(Request $request): Response
+    {
+        $clinicId = $request->clinicId;
+
+        // Get HbA1c distribution from view
+        $hba1cDistribution = Database::queryOne(
+            'SELECT * FROM vw_HbA1cDistribution WHERE clinic_id = ?',
+            [$clinicId]
+        );
+
+        // Get patient stats using vw_PatientDashboardSummary
+        $patientStats = Database::queryOne("
+            SELECT 
+                COUNT(*) AS total_patients,
+                SUM(CASE WHEN status = 'Active' THEN 1 ELSE 0 END) AS active_patients,
+                SUM(CASE WHEN needs_followup = 1 THEN 1 ELSE 0 END) AS needs_followup,
+                SUM(CASE WHEN diabetes_type = 'Type 1' THEN 1 ELSE 0 END) AS type1_count,
+                SUM(CASE WHEN diabetes_type = 'Type 2' THEN 1 ELSE 0 END) AS type2_count,
+                SUM(CASE WHEN diabetes_type = 'Pre-diabetic' THEN 1 ELSE 0 END) AS prediabetic_count,
+                SUM(CASE WHEN diabetes_type = 'Gestational' THEN 1 ELSE 0 END) AS gestational_count,
+                SUM(CASE WHEN hba1c_risk_level = 'Critical' THEN 1 ELSE 0 END) AS critical_count
+            FROM vw_PatientDashboardSummary 
+            WHERE clinic_id = ?
+        ", [$clinicId]);
+
+        return Response::json([
+            'total_patients' => (int) ($patientStats['total_patients'] ?? 0),
+            'active_patients' => (int) ($patientStats['active_patients'] ?? 0),
+            'needs_followup' => (int) ($patientStats['needs_followup'] ?? 0),
+            'critical_hba1c' => (int) ($patientStats['critical_count'] ?? 0),
+            'diabetes_types' => [
+                'type1' => (int) ($patientStats['type1_count'] ?? 0),
+                'type2' => (int) ($patientStats['type2_count'] ?? 0),
+                'prediabetic' => (int) ($patientStats['prediabetic_count'] ?? 0),
+                'gestational' => (int) ($patientStats['gestational_count'] ?? 0),
+            ],
+            'hba1c_distribution' => [
+                'well_controlled' => (int) ($hba1cDistribution['well_controlled_count'] ?? 0),
+                'moderate' => (int) ($hba1cDistribution['moderate_count'] ?? 0),
+                'poor' => (int) ($hba1cDistribution['poor_count'] ?? 0),
+                'critical' => (int) ($hba1cDistribution['critical_count'] ?? 0),
+            ],
+        ]);
+    }
+
+    //INDEX - Uses: idx_patients_search, idx_patients_clinic_type, idx_patients_clinic_status, idx_patients_created_at
+    //VIEW - Can use: vw_PatientDashboardSummary
+    //FUNCTION - Related: fn_CalculateAge, fn_GetHbA1cRiskLevel
     /**
      * GET /api/patients
      * 
@@ -182,7 +239,9 @@ class PatientsController
 
         return Response::json($this->transformPatient($patient));
     }
-
+    
+    //TRIGGER - Fires: trg_Patients_SetUpdatedAt (sets created_at/updated_at), trg_Patients_AuditLog (HIPAA audit)
+    //STOREDPROCEDURE - Related: sp_GeneratePatientCode (auto-generates patient codes)
     /**
      * POST /api/patients
      * 
@@ -235,7 +294,7 @@ class PatientsController
         $patientCode = 'P' . str_pad((string) $nextNumber, 3, '0', STR_PAD_LEFT);
 
         try {
-            Database::execute(
+            $patientId = Database::insertAndGetId(
                 'INSERT INTO patients (clinic_id, patient_code, first_name, last_name, date_of_birth, 
                                        gender, phone, email, address, diabetes_type, diagnosis_date, 
                                        family_history_diabetes, family_history_notes,
@@ -269,8 +328,6 @@ class PatientsController
                 ]
             );
 
-            $patientId = (int) Database::lastInsertId();
-
             // Fetch and return created patient
             $patient = Database::queryOne(
                 'SELECT * FROM patients WHERE id = ?',
@@ -290,6 +347,7 @@ class PatientsController
         }
     }
 
+    //TRIGGER - Fires: trg_Patients_SetUpdatedAt (auto-updates updated_at), trg_Patients_AuditLog (HIPAA audit)
     /**
      * PUT /api/patients/{id}
      * 
@@ -389,6 +447,7 @@ class PatientsController
         }
     }
 
+    //TRIGGER - Fires: trg_Patients_AuditLog (HIPAA audit on soft delete)
     /**
      * DELETE /api/patients/{id}
      * 

@@ -67,6 +67,7 @@ $router->group('', [AuthMiddleware::class], function($router) {
     // ---------------------------------------------------------------------------
     // Patients CRUD
     // ---------------------------------------------------------------------------
+    $router->get('/api/patients/stats', [PatientsController::class, 'stats']);  // Page summary statistics
     $router->get('/api/patients/list', [PatientsController::class, 'list']);  // Lightweight endpoint for dropdowns
     $router->get('/api/patients', [PatientsController::class, 'index']);
     $router->get('/api/patients/{id}/summary', [PatientsController::class, 'summary']);
@@ -78,6 +79,7 @@ $router->group('', [AuthMiddleware::class], function($router) {
     // ---------------------------------------------------------------------------
     // Appointments CRUD
     // ---------------------------------------------------------------------------
+    $router->get('/api/appointments/stats', [AppointmentsController::class, 'stats']);  // Page summary statistics
     $router->get('/api/appointments', [AppointmentsController::class, 'index']);
     $router->get('/api/appointments/{id}', [AppointmentsController::class, 'show']);
     $router->post('/api/appointments', [AppointmentsController::class, 'store']);
@@ -87,6 +89,7 @@ $router->group('', [AuthMiddleware::class], function($router) {
     // ---------------------------------------------------------------------------
     // Medications CRUD
     // ---------------------------------------------------------------------------
+    $router->get('/api/medications/stats', [MedicationsController::class, 'stats']);  // Page summary statistics
     $router->get('/api/medications', [MedicationsController::class, 'index']);
     $router->get('/api/medications/{id}', [MedicationsController::class, 'show']);
     $router->post('/api/medications', [MedicationsController::class, 'store']);
@@ -96,6 +99,7 @@ $router->group('', [AuthMiddleware::class], function($router) {
     // ---------------------------------------------------------------------------
     // Lab Results CRUD
     // ---------------------------------------------------------------------------
+    $router->get('/api/lab-results/stats', [LabResultsController::class, 'stats']);  // Page summary statistics
     $router->get('/api/lab-results', [LabResultsController::class, 'index']);
     $router->get('/api/lab-results/test-types', [LabResultsController::class, 'testTypes']);
     $router->get('/api/lab-results/{id}', [LabResultsController::class, 'show']);

@@ -44,6 +44,46 @@ $totalPages = safeInt($pagination, 'total_pages', 1);
 $patientsResponse = api()->getPatientList();
 $patients = safeGet($patientsResponse, 'data', []);
 
+// Fetch page statistics
+$statsResponse = api()->getLabResultsStats();
+$pageStats = safeGet($statsResponse, 'success') ? $statsResponse : null;
+
+// Build stats cards array
+$stats = [];
+if ($pageStats) {
+    $byTestType = safeGet($pageStats, 'by_test_type', []);
+    $stats = [
+        [
+            'label' => 'Total Results',
+            'value' => safeInt($pageStats, 'total_results', 0),
+            'change' => safeInt($pageStats, 'patients_tested', 0) . ' patients tested',
+            'icon' => 'beaker',
+            'iconClass' => 'amber',
+        ],
+        [
+            'label' => 'Last 30 Days',
+            'value' => safeInt($pageStats, 'last_30_days', 0),
+            'change' => 'Recent tests',
+            'icon' => 'calendar',
+            'iconClass' => 'blue',
+        ],
+        [
+            'label' => 'Abnormal Results',
+            'value' => safeInt($pageStats, 'abnormal_results', 0),
+            'change' => safeGet($pageStats, 'abnormal_percentage', 0) . '% of total',
+            'icon' => 'alert-triangle',
+            'iconClass' => 'red',
+        ],
+        [
+            'label' => 'HbA1c Tests',
+            'value' => safeInt($byTestType, 'hba1c', 0),
+            'change' => safeInt($byTestType, 'glucose', 0) . ' glucose tests',
+            'icon' => 'activity',
+            'iconClass' => 'purple',
+        ],
+    ];
+}
+
 $successMessage = getFlash('success');
 $errorMessage = getFlash('error');
 
@@ -82,6 +122,24 @@ include BASE_PATH . '/includes/layout/header.php';
             </a>
         </div>
     </div>
+    
+    <!-- Stats Summary Cards -->
+    <?php if (!empty($stats)): ?>
+    <div class="grid grid-4 mb-6">
+        <?php foreach ($stats as $stat): ?>
+        <div class="card stat-card">
+            <div class="flex items-center justify-between mb-3">
+                <div class="stat-icon <?php echo e($stat['iconClass']); ?>">
+                    <i data-lucide="<?php echo e($stat['icon']); ?>"></i>
+                </div>
+            </div>
+            <p class="stat-value"><?php echo e($stat['value']); ?></p>
+            <p class="stat-label"><?php echo e($stat['label']); ?></p>
+            <p class="stat-change"><?php echo e($stat['change']); ?></p>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
     
     <!-- Search and Filter -->
     <form method="GET" action="<?php echo baseUrl('/lab-results'); ?>" class="search-filters">

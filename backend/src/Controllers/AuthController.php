@@ -104,7 +104,7 @@ class AuthController
         try {
             $result = Database::transaction(function () use ($data, $passwordHash) {
                 // Create clinic
-                Database::execute(
+                $clinicId = Database::insertAndGetId(
                     'INSERT INTO clinics (name, business_registration_number, medical_license_number, phone, email) 
                      VALUES (?, ?, ?, ?, ?)',
                     [
@@ -115,8 +115,6 @@ class AuthController
                         $data['clinic_email'],
                     ]
                 );
-                
-                $clinicId = (int) Database::lastInsertId();
 
                 // Create clinic address
                 if (!empty($data['street_address']) || !empty($data['city'])) {
@@ -136,7 +134,7 @@ class AuthController
 
                 // Create admin user
                 $nowFunc = SqlHelper::now();
-                Database::execute(
+                $userId = Database::insertAndGetId(
                     "INSERT INTO users (clinic_id, first_name, last_name, email, phone, password_hash, role, terms_accepted_at) 
                      VALUES (?, ?, ?, ?, ?, ?, ?, {$nowFunc})",
                     [
@@ -149,8 +147,6 @@ class AuthController
                         'admin',
                     ]
                 );
-
-                $userId = (int) Database::lastInsertId();
 
                 return [
                     'user_id' => $userId,

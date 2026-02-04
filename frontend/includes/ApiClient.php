@@ -201,6 +201,14 @@ class ApiClient
     // =========================================================================
 
     /**
+     * Get patient page statistics for dashboard summary cards
+     */
+    public function getPatientsStats(): array
+    {
+        return $this->get('/patients/stats');
+    }
+
+    /**
      * Get lightweight patient list for dropdowns
      * Returns only: id, patient_code, first_name, last_name, full_name
      */
@@ -238,6 +246,14 @@ class ApiClient
     // APPOINTMENTS API
     // =========================================================================
 
+    /**
+     * Get appointment page statistics for dashboard summary cards
+     */
+    public function getAppointmentsStats(): array
+    {
+        return $this->get('/appointments/stats');
+    }
+
     public function getAppointments(array $params = []): array
     {
         return $this->get('/appointments', $params);
@@ -267,6 +283,14 @@ class ApiClient
     // MEDICATIONS API
     // =========================================================================
 
+    /**
+     * Get medication page statistics for dashboard summary cards
+     */
+    public function getMedicationsStats(): array
+    {
+        return $this->get('/medications/stats');
+    }
+
     public function getMedications(array $params = []): array
     {
         return $this->get('/medications', $params);
@@ -295,6 +319,14 @@ class ApiClient
     // =========================================================================
     // LAB RESULTS API
     // =========================================================================
+
+    /**
+     * Get lab results page statistics for dashboard summary cards
+     */
+    public function getLabResultsStats(): array
+    {
+        return $this->get('/lab-results/stats');
+    }
 
     public function getLabResults(array $params = []): array
     {

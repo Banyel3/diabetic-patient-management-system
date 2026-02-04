@@ -3,6 +3,8 @@
  * DiabetaCare - Appointments Controller
  * 
  * CRUD operations for appointment scheduling.
+ * 
+ * @see docs/DATABASE_OBJECTS_BY_CONTROLLER.md for database objects documentation
  */
 
 declare(strict_types=1);
@@ -17,6 +19,70 @@ use DiabetaCare\Services\Validator;
 
 class AppointmentsController
 {
+    //VIEW - Uses: vw_AppointmentCalendar
+    /**
+     * GET /api/appointments/stats
+     * 
+     * Get summary statistics for appointments page dashboard.
+     * Uses database views for optimized aggregation.
+     */
+    public function stats(Request $request): Response
+    {
+        $clinicId = $request->clinicId;
+        $today = date('Y-m-d');
+
+        if (Database::isSqlServer()) {
+            $stats = Database::queryOne("
+                SELECT 
+                    COUNT(*) AS total_appointments,
+                    SUM(CASE WHEN CAST(scheduled_at AS DATE) = ? THEN 1 ELSE 0 END) AS today_total,
+                    SUM(CASE WHEN CAST(scheduled_at AS DATE) = ? AND status = 'Scheduled' THEN 1 ELSE 0 END) AS today_scheduled,
+                    SUM(CASE WHEN CAST(scheduled_at AS DATE) = ? AND status = 'Completed' THEN 1 ELSE 0 END) AS today_completed,
+                    SUM(CASE WHEN status = 'Scheduled' AND scheduled_at >= GETDATE() THEN 1 ELSE 0 END) AS upcoming,
+                    SUM(CASE WHEN scheduled_at >= DATEADD(DAY, -DATEPART(WEEKDAY, GETDATE()) + 1, CAST(GETDATE() AS DATE))
+                              AND scheduled_at < DATEADD(DAY, 7 - DATEPART(WEEKDAY, GETDATE()) + 1, CAST(GETDATE() AS DATE)) THEN 1 ELSE 0 END) AS this_week,
+                    SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) AS completed,
+                    SUM(CASE WHEN status = 'Cancelled' THEN 1 ELSE 0 END) AS cancelled,
+                    SUM(CASE WHEN status = 'No-show' THEN 1 ELSE 0 END) AS no_show
+                FROM vw_AppointmentCalendar 
+                WHERE clinic_id = ?
+            ", [$today, $today, $today, $clinicId]);
+        } else {
+            $stats = Database::queryOne("
+                SELECT 
+                    COUNT(*) AS total_appointments,
+                    SUM(CASE WHEN DATE(scheduled_at) = ? THEN 1 ELSE 0 END) AS today_total,
+                    SUM(CASE WHEN DATE(scheduled_at) = ? AND status = 'Scheduled' THEN 1 ELSE 0 END) AS today_scheduled,
+                    SUM(CASE WHEN DATE(scheduled_at) = ? AND status = 'Completed' THEN 1 ELSE 0 END) AS today_completed,
+                    SUM(CASE WHEN status = 'Scheduled' AND scheduled_at >= NOW() THEN 1 ELSE 0 END) AS upcoming,
+                    SUM(CASE WHEN YEARWEEK(scheduled_at, 1) = YEARWEEK(CURDATE(), 1) THEN 1 ELSE 0 END) AS this_week,
+                    SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) AS completed,
+                    SUM(CASE WHEN status = 'Cancelled' THEN 1 ELSE 0 END) AS cancelled,
+                    SUM(CASE WHEN status = 'No-show' THEN 1 ELSE 0 END) AS no_show
+                FROM vw_AppointmentCalendar 
+                WHERE clinic_id = ?
+            ", [$today, $today, $today, $clinicId]);
+        }
+
+        return Response::json([
+            'today' => [
+                'total' => (int) ($stats['today_total'] ?? 0),
+                'scheduled' => (int) ($stats['today_scheduled'] ?? 0),
+                'completed' => (int) ($stats['today_completed'] ?? 0),
+            ],
+            'this_week' => (int) ($stats['this_week'] ?? 0),
+            'upcoming' => (int) ($stats['upcoming'] ?? 0),
+            'by_status' => [
+                'completed' => (int) ($stats['completed'] ?? 0),
+                'cancelled' => (int) ($stats['cancelled'] ?? 0),
+                'no_show' => (int) ($stats['no_show'] ?? 0),
+            ],
+        ]);
+    }
+
+    //INDEX - Uses: idx_appointments_clinic_scheduled, idx_appointments_clinic_status, idx_appointments_patient
+    //VIEW - Related: vw_AppointmentCalendar
+    //FUNCTION - Related: fn_GetDaysUntilNextAppointment
     /**
      * GET /api/appointments
      * 
@@ -155,6 +221,7 @@ class AppointmentsController
         return Response::json($this->transformAppointment($appointment));
     }
 
+    //TRIGGER - Fires: trg_Appointments_SetUpdatedAt (sets created_at/updated_at)
     /**
      * POST /api/appointments
      */
@@ -193,7 +260,7 @@ class AppointmentsController
         }
 
         try {
-            Database::execute(
+            $appointmentId = Database::insertAndGetId(
                 'INSERT INTO appointments (clinic_id, patient_id, scheduled_at, duration_minutes, type, status, notes)
                  VALUES (?, ?, ?, ?, ?, ?, ?)',
                 [
@@ -206,8 +273,6 @@ class AppointmentsController
                     $data['notes'] ?? null,
                 ]
             );
-
-            $appointmentId = (int) Database::lastInsertId();
 
             // Update patient's last visit date if completed
             if (($data['status'] ?? 'Scheduled') === 'Completed') {
@@ -237,6 +302,8 @@ class AppointmentsController
         }
     }
 
+    //TRIGGER - Fires: trg_Appointments_SetUpdatedAt, trg_Appointments_AfterUpdate (updates patient.last_visit_date when status='Completed')
+    //STOREDPROCEDURE - Calls: sp_UpdatePatientLastVisit (via trigger)
     /**
      * PUT /api/appointments/{id}
      * 

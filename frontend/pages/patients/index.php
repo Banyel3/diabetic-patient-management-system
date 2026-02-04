@@ -38,6 +38,45 @@ $pagination = safeGet($response, 'success') ? safeGet($response, 'pagination', [
 $totalItems = safeInt($pagination, 'total_items', 0);
 $totalPages = safeInt($pagination, 'total_pages', 1);
 
+// Fetch page statistics
+$statsResponse = api()->getPatientsStats();
+$pageStats = safeGet($statsResponse, 'success') ? $statsResponse : null;
+
+// Build stats cards array
+$stats = [];
+if ($pageStats) {
+    $stats = [
+        [
+            'label' => 'Total Patients',
+            'value' => safeInt($pageStats, 'total_patients', 0),
+            'change' => safeInt($pageStats, 'active_patients', 0) . ' active',
+            'icon' => 'users',
+            'iconClass' => 'accent',
+        ],
+        [
+            'label' => 'Need Follow-up',
+            'value' => safeInt($pageStats, 'needs_followup', 0),
+            'change' => '90+ days since visit',
+            'icon' => 'clock',
+            'iconClass' => 'amber',
+        ],
+        [
+            'label' => 'Critical HbA1c',
+            'value' => safeInt($pageStats, 'critical_hba1c', 0),
+            'change' => 'HbA1c ≥ 9.0%',
+            'icon' => 'alert-triangle',
+            'iconClass' => 'red',
+        ],
+        [
+            'label' => 'Well Controlled',
+            'value' => safeInt(safeGet($pageStats, 'hba1c_distribution', []), 'well_controlled', 0),
+            'change' => 'HbA1c < 7.0%',
+            'icon' => 'check-circle',
+            'iconClass' => 'green',
+        ],
+    ];
+}
+
 $successMessage = getFlash('success');
 $errorMessage = getFlash('error');
 
@@ -76,6 +115,24 @@ include BASE_PATH . '/includes/layout/header.php';
             </a>
         </div>
     </div>
+    
+    <!-- Stats Summary Cards -->
+    <?php if (!empty($stats)): ?>
+    <div class="grid grid-4 mb-6">
+        <?php foreach ($stats as $stat): ?>
+        <div class="card stat-card">
+            <div class="flex items-center justify-between mb-3">
+                <div class="stat-icon <?php echo e($stat['iconClass']); ?>">
+                    <i data-lucide="<?php echo e($stat['icon']); ?>"></i>
+                </div>
+            </div>
+            <p class="stat-value"><?php echo e($stat['value']); ?></p>
+            <p class="stat-label"><?php echo e($stat['label']); ?></p>
+            <p class="stat-change"><?php echo e($stat['change']); ?></p>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
     
     <!-- Search and Filter -->
     <form method="GET" action="<?php echo baseUrl('/patients'); ?>" class="search-filters">

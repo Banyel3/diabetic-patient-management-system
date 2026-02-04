@@ -3,6 +3,8 @@
  * DiabetaCare - Medications Controller
  * 
  * CRUD operations for patient medications/prescriptions.
+ * 
+ * @see docs/DATABASE_OBJECTS_BY_CONTROLLER.md for database objects documentation
  */
 
 declare(strict_types=1);
@@ -17,6 +19,59 @@ use DiabetaCare\Services\Validator;
 
 class MedicationsController
 {
+    //VIEW - Uses: vw_PatientMedications
+    /**
+     * GET /api/medications/stats
+     * 
+     * Get summary statistics for medications page dashboard.
+     * Uses database views for optimized aggregation.
+     */
+    public function stats(Request $request): Response
+    {
+        $clinicId = $request->clinicId;
+
+        $stats = Database::queryOne("
+            SELECT 
+                COUNT(*) AS total_prescriptions,
+                SUM(CASE WHEN status = 'Active' THEN 1 ELSE 0 END) AS active_prescriptions,
+                SUM(CASE WHEN status = 'Discontinued' THEN 1 ELSE 0 END) AS discontinued_prescriptions,
+                COUNT(DISTINCT patient_id) AS patients_on_medications,
+                COUNT(DISTINCT CASE WHEN status = 'Active' THEN patient_id END) AS patients_with_active_meds,
+                AVG(CASE WHEN status = 'Active' THEN days_on_medication END) AS avg_days_on_active_med
+            FROM vw_PatientMedications 
+            WHERE clinic_id = ?
+        ", [$clinicId]);
+
+        // Get top medications by count
+        $topMedications = Database::query("
+            SELECT medication_name, COUNT(*) AS count
+            FROM vw_PatientMedications 
+            WHERE clinic_id = ? AND status = 'Active'
+            GROUP BY medication_name
+            ORDER BY count DESC
+            " . (Database::isSqlServer() ? 'OFFSET 0 ROWS FETCH NEXT 5 ROWS ONLY' : 'LIMIT 5'),
+            [$clinicId]
+        );
+
+        return Response::json([
+            'total_prescriptions' => (int) ($stats['total_prescriptions'] ?? 0),
+            'active_prescriptions' => (int) ($stats['active_prescriptions'] ?? 0),
+            'discontinued' => (int) ($stats['discontinued_prescriptions'] ?? 0),
+            'patients_on_medications' => (int) ($stats['patients_on_medications'] ?? 0),
+            'patients_with_active_meds' => (int) ($stats['patients_with_active_meds'] ?? 0),
+            'avg_days_on_medication' => round((float) ($stats['avg_days_on_active_med'] ?? 0), 0),
+            'top_medications' => array_map(function($row) {
+                return [
+                    'name' => $row['medication_name'],
+                    'count' => (int) $row['count'],
+                ];
+            }, $topMedications),
+        ]);
+    }
+
+    //INDEX - Uses: idx_medications_clinic_status, idx_medications_clinic_patient, idx_medications_search
+    //VIEW - Related: vw_PatientMedications
+    //FUNCTION - Related: fn_GetPatientMedicationCount
     /**
      * GET /api/medications
      * 
@@ -126,6 +181,7 @@ class MedicationsController
         return Response::json($this->transformMedication($medication));
     }
 
+    //TRIGGER - Fires: trg_Medications_SetUpdatedAt (sets created_at/updated_at)
     /**
      * POST /api/medications
      */
@@ -169,7 +225,7 @@ class MedicationsController
         }
 
         try {
-            Database::execute(
+            $medicationId = Database::insertAndGetId(
                 'INSERT INTO medications (clinic_id, patient_id, name, generic_name, dosage, frequency, route, start_date, end_date, prescribing_doctor, status, notes)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
@@ -187,8 +243,6 @@ class MedicationsController
                     $data['notes'] ?? null,
                 ]
             );
-
-            $medicationId = (int) Database::lastInsertId();
 
             $medication = Database::queryOne(
                 "SELECT m.*, p.patient_code, p.first_name as patient_first_name, 
@@ -212,6 +266,7 @@ class MedicationsController
         }
     }
 
+    //TRIGGER - Fires: trg_Medications_SetUpdatedAt (auto-updates updated_at)
     /**
      * PUT /api/medications/{id}
      * Supports partial updates - only validates and updates provided fields

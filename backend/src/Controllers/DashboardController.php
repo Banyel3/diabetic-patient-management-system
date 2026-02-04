@@ -5,6 +5,8 @@
  * Aggregated statistics and KPIs for the clinic dashboard.
  * Uses Common Table Expressions (CTEs) for optimized complex queries.
  * Compatible with both MySQL and SQL Server.
+ * 
+ * @see docs/DATABASE_OBJECTS_BY_CONTROLLER.md for database objects documentation
  */
 
 declare(strict_types=1);
@@ -36,6 +38,8 @@ class DashboardController
         return $this->summaryForMySql($clinicId, $today);
     }
     
+    //CTE - Uses 6 CTEs: patient_stats, todays_appointments, week_appointments, hba1c_control, medication_stats, recent_labs
+    //INDEX - Uses: idx_patients_clinic_deleted, idx_appointments_clinic_scheduled, idx_lab_results_clinic_date
     /**
      * SQL Server version of dashboard summary
      */
@@ -129,6 +133,8 @@ class DashboardController
         return $this->formatSummaryResponse($stats);
     }
     
+    //CTE - Uses 6 CTEs: patient_stats, todays_appointments, week_appointments, hba1c_control, medication_stats, recent_labs
+    //INDEX - Uses: idx_patients_clinic_deleted, idx_appointments_clinic_scheduled, idx_lab_results_clinic_date
     /**
      * MySQL version of dashboard summary
      */

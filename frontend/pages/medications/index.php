@@ -59,6 +59,46 @@ $totalPages = safeInt($pagination, 'total_pages', 1);
 $patientsResponse = api()->getPatientList();
 $patients = safeGet($patientsResponse, 'data', []);
 
+// Fetch page statistics
+$statsResponse = api()->getMedicationsStats();
+$pageStats = safeGet($statsResponse, 'success') ? $statsResponse : null;
+
+// Build stats cards array
+$stats = [];
+if ($pageStats) {
+    $avgDays = safeInt($pageStats, 'avg_days_on_medication', 0);
+    $stats = [
+        [
+            'label' => 'Active Prescriptions',
+            'value' => safeInt($pageStats, 'active_prescriptions', 0),
+            'change' => safeInt($pageStats, 'total_prescriptions', 0) . ' total',
+            'icon' => 'pill',
+            'iconClass' => 'purple',
+        ],
+        [
+            'label' => 'Patients on Medications',
+            'value' => safeInt($pageStats, 'patients_with_active_meds', 0),
+            'change' => 'Currently active',
+            'icon' => 'users',
+            'iconClass' => 'blue',
+        ],
+        [
+            'label' => 'Discontinued',
+            'value' => safeInt($pageStats, 'discontinued', 0),
+            'change' => 'Stopped prescriptions',
+            'icon' => 'x-circle',
+            'iconClass' => 'amber',
+        ],
+        [
+            'label' => 'Avg Duration',
+            'value' => $avgDays . ' days',
+            'change' => 'Active medications',
+            'icon' => 'clock',
+            'iconClass' => 'green',
+        ],
+    ];
+}
+
 $successMessage = getFlash('success');
 $errorMessage = getFlash('error');
 
@@ -97,6 +137,24 @@ include BASE_PATH . '/includes/layout/header.php';
             </a>
         </div>
     </div>
+    
+    <!-- Stats Summary Cards -->
+    <?php if (!empty($stats)): ?>
+    <div class="grid grid-4 mb-6">
+        <?php foreach ($stats as $stat): ?>
+        <div class="card stat-card">
+            <div class="flex items-center justify-between mb-3">
+                <div class="stat-icon <?php echo e($stat['iconClass']); ?>">
+                    <i data-lucide="<?php echo e($stat['icon']); ?>"></i>
+                </div>
+            </div>
+            <p class="stat-value"><?php echo e($stat['value']); ?></p>
+            <p class="stat-label"><?php echo e($stat['label']); ?></p>
+            <p class="stat-change"><?php echo e($stat['change']); ?></p>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
     
     <!-- Search and Filter -->
     <form method="GET" action="<?php echo baseUrl('/medications'); ?>" class="search-filters">

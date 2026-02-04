@@ -162,6 +162,31 @@ class Database
     }
 
     /**
+     * Execute an INSERT and return the new ID.
+     * For SQL Server, executes INSERT and SCOPE_IDENTITY() in the same batch.
+     * For MySQL, uses PDO::lastInsertId().
+     */
+    public static function insertAndGetId(string $sql, array $params = []): int
+    {
+        if (self::$driver === 'sqlsrv') {
+            // SQL Server: Execute INSERT then get SCOPE_IDENTITY() in same batch
+            // This works even when triggers are present on the table
+            $sql .= '; SELECT SCOPE_IDENTITY() AS id';
+            $stmt = self::prepare($sql);
+            $stmt->execute($params);
+            // Move to the result set from SELECT SCOPE_IDENTITY()
+            $stmt->nextRowset();
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            return $row && $row['id'] !== null ? (int) $row['id'] : 0;
+        }
+        
+        // MySQL: Execute and use lastInsertId
+        $stmt = self::prepare($sql);
+        $stmt->execute($params);
+        return (int) self::getConnection()->lastInsertId();
+    }
+
+    /**
      * Get last inserted ID
      * Note: For SQL Server, PDO::lastInsertId() doesn't work reliably with SQLSRV driver.
      * We use SCOPE_IDENTITY() instead which is the recommended approach.

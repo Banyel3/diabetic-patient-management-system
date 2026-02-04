@@ -4,6 +4,8 @@
  * 
  * CRUD operations for patient laboratory test results.
  * Includes auto-population of units and reference ranges for common diabetes tests.
+ * 
+ * @see docs/DATABASE_OBJECTS_BY_CONTROLLER.md for database objects documentation
  */
 
 declare(strict_types=1);
@@ -41,6 +43,79 @@ class LabResultsController
         'Blood Pressure' => ['unit' => 'mmHg', 'reference_range' => '< 130/80', 'category' => 'Cardiovascular'],
     ];
 
+    //TABLE - Uses: lab_results
+    /**
+     * GET /api/lab-results/stats
+     * 
+     * Get summary statistics for lab results page dashboard.
+     * Queries lab_results table directly for reliable aggregation.
+     */
+    public function stats(Request $request): Response
+    {
+        $clinicId = $request->clinicId;
+
+        if (Database::isSqlServer()) {
+            $stats = Database::queryOne("
+                SELECT 
+                    COUNT(*) AS total_results,
+                    SUM(CASE WHEN status IN ('Abnormal', 'Critical') THEN 1 ELSE 0 END) AS abnormal_results,
+                    COUNT(DISTINCT patient_id) AS patients_tested,
+                    SUM(CASE WHEN test_date >= DATEADD(DAY, -30, CAST(GETDATE() AS DATE)) THEN 1 ELSE 0 END) AS last_30_days,
+                    SUM(CASE WHEN test_name = 'HbA1c' THEN 1 ELSE 0 END) AS hba1c_tests,
+                    SUM(CASE WHEN test_name = 'Fasting Glucose' THEN 1 ELSE 0 END) AS glucose_tests
+                FROM lab_results 
+                WHERE clinic_id = ?
+            ", [$clinicId]);
+        } else {
+            $stats = Database::queryOne("
+                SELECT 
+                    COUNT(*) AS total_results,
+                    SUM(CASE WHEN status IN ('Abnormal', 'Critical') THEN 1 ELSE 0 END) AS abnormal_results,
+                    COUNT(DISTINCT patient_id) AS patients_tested,
+                    SUM(CASE WHEN test_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS last_30_days,
+                    SUM(CASE WHEN test_name = 'HbA1c' THEN 1 ELSE 0 END) AS hba1c_tests,
+                    SUM(CASE WHEN test_name = 'Fasting Glucose' THEN 1 ELSE 0 END) AS glucose_tests
+                FROM lab_results 
+                WHERE clinic_id = ?
+            ", [$clinicId]);
+        }
+
+        // Get test type distribution
+        $testDistribution = Database::query("
+            SELECT test_name AS test_type, COUNT(*) AS count
+            FROM lab_results 
+            WHERE clinic_id = ?
+            GROUP BY test_name
+            ORDER BY count DESC
+            " . (Database::isSqlServer() ? 'OFFSET 0 ROWS FETCH NEXT 5 ROWS ONLY' : 'LIMIT 5'),
+            [$clinicId]
+        );
+
+        $totalResults = (int) ($stats['total_results'] ?? 0);
+        $abnormalResults = (int) ($stats['abnormal_results'] ?? 0);
+
+        return Response::json([
+            'total_results' => $totalResults,
+            'abnormal_results' => $abnormalResults,
+            'normal_results' => $totalResults - $abnormalResults,
+            'abnormal_percentage' => $totalResults > 0 ? round(($abnormalResults / $totalResults) * 100, 1) : 0,
+            'patients_tested' => (int) ($stats['patients_tested'] ?? 0),
+            'last_30_days' => (int) ($stats['last_30_days'] ?? 0),
+            'by_test_type' => [
+                'hba1c' => (int) ($stats['hba1c_tests'] ?? 0),
+                'glucose' => (int) ($stats['glucose_tests'] ?? 0),
+            ],
+            'test_distribution' => array_map(function($row) {
+                return [
+                    'test_type' => $row['test_type'],
+                    'count' => (int) $row['count'],
+                ];
+            }, $testDistribution),
+        ]);
+    }
+
+    //INDEX - Uses: idx_lab_results_clinic_date, idx_lab_results_clinic_status, idx_lab_results_clinic_test, idx_lab_results_patient_date
+    //VIEW - Related: vw_LabResultsDetail
     /**
      * GET /api/lab-results
      * 
@@ -187,6 +262,8 @@ class LabResultsController
         return Response::json($this->transformLabResult($labResult));
     }
 
+    //TRIGGER - Fires: trg_LabResults_SetUpdatedAt, trg_LabResults_AfterInsert (syncs patient.last_hba1c for HbA1c tests)
+    //STOREDPROCEDURE - Calls: sp_UpdatePatientLastHbA1c (via trigger for HbA1c)
     /**
      * POST /api/lab-results
      */
@@ -241,7 +318,7 @@ class LabResultsController
         $status = $this->determineStatus($testName, (string) $data['result_value']);
 
         try {
-            Database::execute(
+            $labResultId = Database::insertAndGetId(
                 'INSERT INTO lab_results (clinic_id, patient_id, test_name, test_date, result_value, unit, reference_range, status, notes)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
@@ -256,8 +333,6 @@ class LabResultsController
                     $data['notes'] ?? null,
                 ]
             );
-
-            $labResultId = (int) Database::lastInsertId();
 
             // If this is an HbA1c test, update patient's last_hba1c
             // Note: There's also a trigger for this, but we do it here for immediate feedback
@@ -287,6 +362,8 @@ class LabResultsController
         }
     }
 
+    //TRIGGER - Fires: trg_LabResults_SetUpdatedAt, trg_LabResults_AfterUpdate (re-syncs patient.last_hba1c for HbA1c)
+    //STOREDPROCEDURE - Calls: sp_UpdatePatientLastHbA1c (via trigger for HbA1c)
     /**
      * PUT /api/lab-results/{id}
      */
@@ -381,6 +458,7 @@ class LabResultsController
         }
     }
 
+    //TRIGGER - Note: Manually calls updatePatientHbA1c() since DELETE triggers don't auto-sync
     /**
      * DELETE /api/lab-results/{id}
      */
